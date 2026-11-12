@@ -187,10 +187,10 @@ def main():
                 if mode == "undetected":
                     page.evaluate("window.__synth = { mode: 'none' }")
                 page.click(".sp:has-text('Test Routine')")  # the 30 s deterministic routine (the song has its own e2e-song.py)
-                page.wait_for_selector(".panel.ready .btn:not([disabled])", timeout=5000)
+                page.wait_for_selector(".panel.ready .btn:not(.ghost):not([disabled])", timeout=5000)
                 page.screenshot(path=str(OUT / f"{label}-ready.png"))
                 t_click = page.evaluate("performance.now()")
-                page.click(".panel.ready .btn")
+                page.click(".panel.ready .btn:not(.ghost)")
                 t0 = t_click + 3000 + 100 + 8  # same formula as the game: click + leadIn + 100 ms (+ click latency)
                 if mode == "perfect":
                     page.evaluate(f"window.__synth = {{ mode: 'copy', t0: {t0}, lag: {lag}, noise: {noise} }}")

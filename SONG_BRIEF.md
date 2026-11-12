@@ -63,7 +63,7 @@ Total 29 eight-counts = 232 beats = 108.75 s.
 
 ## Style prompt for generating the real vocals (Suno / Udio / a singer / a vocal synth)
 
-> Energetic English dance-pop with a pop-rock and funk feel, **128 BPM**, A minor, bright and joyful, catchy and very repetitive chorus with group shouts ("Hey!"), tight funky bass, clean drums, sparkling synth arpeggio. Female lead on verse 1 and bridge, male lead on verse 2, both together on pre-chorus and chorus. 4/4, 29 eight-counts (1:49), with an instrumental intro (first vocal at 0:05.6). The vocal take must follow the grid exactly (first beat = 0:00).
+> Energetic English dance-pop with a pop-rock and funk feel, **128 BPM**, A minor, bright and joyful, catchy and very repetitive chorus with group shouts ("Hey!"), tight funky bass, clean drums, sparkling synth arpeggio. Female lead on verse 1 and bridge, male lead on verse 2, both together on pre-chorus and chorus. 4/4, 29 eight-counts (1:49), starts with a 2-bar instrumental intro of 4 s... The vocal take must start exactly on the first beat of the grid.
 
 Chord loop: chorus **Am – F – C – G** (4 beats each); verses Am–Am–F–G; pre-chorus F–G–F–G.
 
@@ -75,39 +75,39 @@ Chord loop: chorus **Am – F – C – G** (4 beats each); verses Am–Am–F�
 
 ## Choreography (original, beginner friendly)
 
-Four poses per 8-count, landing on counts 2-4-6-8 (every 0.94 s). The first 8-count is an unscored "watch" bar. Chorus signature: **side steps with arm swings**, **alternating sky punches**, **overhead clap + knee bend**. The dancer also bounces and sways on every beat (decoration only — not scored).
+One pose on every beat (8 per 8-count) so the dancer keeps moving like a TikTok routine: groove/bounce poses on the odd counts (1-3-5-7) and **scored accent poses on counts 2-4-6-8** (every 0.94 s). The first 8-count is an unscored "watch" bar. Chorus signature: **side steps with arm swings**, **alternating sky punches**, **overhead clap + knee bend**; verses add disco points, hands on hips, arm sweeps and cactus arms. The dancer also bounces and sways on every beat (decoration only — not scored).
 
-| 8-count | Poses |
+| 8-count | Poses (beat 1 → 8) |
 |---|---|
-| 1 | Arms out wide → Relax → Arms out wide → Relax |
-| 2 | Point right → Point left → Point right → Point left |
-| 3 | Step right → Step left → Point right → Point left |
-| 4 | Arms out wide → Cactus arms → Arms out wide → Cactus arms |
-| 5 | Step right → Step left → Bend knees → Relax |
-| 6 | Sky punch right → Sky punch left → Both hands up → Relax |
-| 7 | Bend knees → V arms → Bend knees → V arms |
-| 8 | Bend knees → V arms → Both hands up → Both hands up |
-| 9 | Swing right → Swing left → Swing right → Swing left |
-| 10 | Sky punch right → Sky punch left → Sky punch right → Sky punch left |
-| 11 | Swing right → Swing left → Swing right → Swing left |
-| 12 | Overhead clap → Bend knees → Overhead clap → V arms |
-| 13 | Point right → Point left → Swing right → Swing left |
-| 14 | Cactus arms → Arms out wide → Cactus arms → Arms out wide |
-| 15 | Arm up + step right → Arm up + step left → Arm up + step right → Arm up + step left |
-| 16 | Bend knees → Both hands up → Bend knees → Both hands up |
-| 17 | Bend knees → V arms → Bend knees → V arms |
-| 18 | Bend knees → V arms → Both hands up → Both hands up |
-| 19 | Swing right → Swing left → Swing right → Swing left |
-| 20 | Sky punch right → Sky punch left → Sky punch right → Sky punch left |
-| 21 | Swing right → Swing left → Swing right → Swing left |
-| 22 | Overhead clap → Bend knees → Overhead clap → V arms |
-| 23 | Point right → Sky punch left → Point left → Sky punch right |
-| 24 | Bend knees → Relax → Both hands up → Both hands up |
-| 25 | Swing right → Swing left → Swing right → Swing left |
-| 26 | Sky punch right → Sky punch left → Sky punch right → Sky punch left |
-| 27 | Swing right → Swing left → Swing right → Swing left |
-| 28 | Overhead clap → Bend knees → Overhead clap → Arms up, feet wide |
-| 29 | Sky punch right → Sky punch left → Overhead clap → Arms up, feet wide |
+| 1 | Groove right → Arms out wide → Groove left → Arms out wide → Groove right → Cactus arms → Groove left → Cactus arms |
+| 2 | Groove right → Point right → Groove left → Point left → Groove right → Hands on hips → Groove left → Hands on hips |
+| 3 | Groove right → Step right → Groove left → Step left → Groove right → Disco point right → Groove left → Disco point left |
+| 4 | Dip → Hands on hips → Dip → Hands on hips → Groove right → Sweep arms right → Groove left → Sweep arms left |
+| 5 | Groove right → Step right → Groove left → Step left → Dip → Bend knees → Groove right → Both hands up |
+| 6 | Pump right → Sky punch right → Pump left → Sky punch left → Dip → Both hands up → Groove left → Hands on hips |
+| 7 | Dip → V arms → Dip → V arms → Dip → V arms → Dip → Both hands up |
+| 8 | Pump right → Sky punch right → Pump left → Sky punch left → Dip → Bend knees → Groove right → Both hands up |
+| 9 | Groove right → Swing right → Groove left → Swing left → Groove right → Swing right → Groove left → Swing left |
+| 10 | Pump right → Sky punch right → Pump left → Sky punch left → Pump right → Sky punch right → Pump left → Sky punch left |
+| 11 | Groove right → Sweep arms right → Groove left → Sweep arms left → Groove right → Swing right → Groove left → Swing left |
+| 12 | Dip → Overhead clap → Dip → Bend knees → Dip → Overhead clap → Groove right → V arms |
+| 13 | Groove right → Point right → Groove left → Point left → Groove right → Swing right → Groove left → Swing left |
+| 14 | Dip → Cactus arms → Dip → Arms out wide → Dip → Cactus arms → Dip → Arms out wide |
+| 15 | Groove right → Arm up + step right → Groove left → Arm up + step left → Groove right → Arm up + step right → Groove left → Arm up + step left |
+| 16 | Dip → Bend knees → Dip → Both hands up → Dip → Bend knees → Dip → Both hands up |
+| 17 | Dip → V arms → Dip → V arms → Dip → V arms → Dip → Both hands up |
+| 18 | Pump right → Sky punch right → Pump left → Sky punch left → Dip → Bend knees → Groove right → Both hands up |
+| 19 | Groove right → Swing right → Groove left → Swing left → Groove right → Swing right → Groove left → Swing left |
+| 20 | Pump right → Sky punch right → Pump left → Sky punch left → Pump right → Sky punch right → Pump left → Sky punch left |
+| 21 | Groove right → Sweep arms right → Groove left → Sweep arms left → Groove right → Swing right → Groove left → Swing left |
+| 22 | Dip → Overhead clap → Dip → Bend knees → Dip → Overhead clap → Groove right → V arms |
+| 23 | Groove right → Disco point right → Groove left → Disco point left → Groove right → Hands on hips → Groove left → Hands on hips |
+| 24 | Dip → Bend knees → Dip → Both hands up → Dip → Both hands up → Groove right → Overhead clap |
+| 25 | Groove right → Swing right → Groove left → Swing left → Groove right → Swing right → Groove left → Swing left |
+| 26 | Pump right → Sky punch right → Pump left → Sky punch left → Pump right → Sky punch right → Pump left → Sky punch left |
+| 27 | Groove right → Sweep arms right → Groove left → Sweep arms left → Groove right → Swing right → Groove left → Swing left |
+| 28 | Dip → Overhead clap → Dip → Bend knees → Dip → Overhead clap → Groove right → Arms up, feet wide |
+| 29 | Pump right → Sky punch right → Pump left → Sky punch left → Dip → Overhead clap → Groove right → Arms up, feet wide |
 
 What the camera scores: arm and leg angles, relative joint positions, sideways step, knee bend, timing (±0.42 s window, centred 0.15 s after the beat to allow for human reaction). **Not scored:** shoulder bounce and hip sway (they are decoration on the 3D dancer; 2D camera tracking can't judge them reliably).
 

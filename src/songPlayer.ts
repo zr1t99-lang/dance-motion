@@ -56,7 +56,44 @@ export function prepareInstrumental(sampleRate = 32000): Promise<Rendered> {
  * start() is given the performance.now() timestamp of choreography t = 0 and the music's beat 0 is
  * scheduled for exactly that moment (minus the device's reported output latency, plus the user offset).
  */
+/** A 3-minute silent mono WAV (8-bit, 4 kHz, ~720 KB) as a blob URL. Not looped: a tiny looping clip makes some browsers spin. */
+function silentWavUrl(): string {
+  const sr = 4000, n = sr * 180;
+  const b = new Uint8Array(44 + n).fill(128);
+  const dv = new DataView(b.buffer);
+  const w = (o: number, t: string) => { for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + n, true); w(8, "WAVE"); w(12, "fmt ");
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true);
+  w(36, "data"); dv.setUint32(40, n, true);
+  return URL.createObjectURL(new Blob([b], { type: "audio/wav" }));
+}
+
+/**
+ * iPhone/iPad: Web Audio is muted by the silent switch unless the page is in the "playback" audio session.
+ * Must run inside a tap. Harmless (no-op) on browsers that lack these APIs.
+ */
+function unlockAudioSession(): HTMLAudioElement | null {
+  try {
+    (navigator as any).audioSession.type = "playback";
+  } catch {
+    /* not supported */
+  }
+  try {
+    const a = new Audio(silentWavUrl());
+    (a as any).playsInline = true;
+    a.play().catch(() => {});
+    return a;
+  } catch {
+    return null;
+  }
+}
+
 export class MusicPlayer {
+  private keepAlive: HTMLAudioElement | null = null;
+  /** Called when the browser refuses to start sound (shown to the player; never silently ignored). */
+  onProblem: ((msg: string) => void) | null = null;
+
   private beat: BeatAudio | null = null;
   private ctx: AudioContext | null = null;
   private srcs: AudioBufferSourceNode[] = [];
@@ -98,6 +135,7 @@ export class MusicPlayer {
   /** Must be called from a user gesture. `startPerf` = performance.now() of choreography t = 0. */
   start(def: SongDef, startPerf: number, offsetMs = 0) {
     this.stop();
+    this.keepAlive = unlockAudioSession();
     if (def.audio === "beat") {
       this.beat = new BeatAudio();
       this.beat.start();
@@ -133,8 +171,33 @@ export class MusicPlayer {
       when = w0;
       mk(this.vocalBuf, 1);
     }
-    ctx.resume?.();
+    ctx.resume?.().then(() => {
+      if (ctx.state !== "running") this.onProblem?.("The browser blocked the sound. Tap the 🔊 button, check the volume / silent switch, then press Restart.");
+    });
     (window as any).__songDebug = { ctxTimeAtStart: ctx.currentTime, scheduledFor: w0, latency: lat, perfAtStart: performance.now(), startPerf, ctxNow: () => ctx.currentTime, ctxState: () => ctx.state };
+  }
+
+  /** Plays 6 s of the chorus so the player can check volume / silent switch BEFORE the game starts. Call from a tap. */
+  async preview(def: SongDef): Promise<string> {
+    this.stop();
+    this.keepAlive = unlockAudioSession();
+    if (def.audio !== "synth") return "This routine only has a click beat; it plays when you press START.";
+    if (!rendered) return "The music is not ready yet.";
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return "This browser has no Web Audio support.";
+    const ctx: AudioContext = new AC({ sampleRate: rendered.sampleRate });
+    this.ctx = ctx;
+    await ctx.resume();
+    if (ctx.state !== "running") return "The browser blocked the sound (check volume and the silent switch).";
+    const buf = ctx.createBuffer(2, rendered.left.length, rendered.sampleRate);
+    buf.copyToChannel(rendered.left as any, 0);
+    buf.copyToChannel(rendered.right as any, 1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0, def.beatSec * 64, 6);
+    this.srcs.push(src);
+    return "Playing the chorus… if you hear nothing: raise the volume and switch off the silent mode.";
   }
 
   pause() {
@@ -162,6 +225,12 @@ export class MusicPlayer {
       /* ignore */
     }
     this.ctx = null;
+    try {
+      this.keepAlive?.pause();
+    } catch {
+      /* ignore */
+    }
+    this.keepAlive = null;
   }
   /** Seconds of audio played so far (AudioContext clock), for drift checks. */
   get ctxTime() {

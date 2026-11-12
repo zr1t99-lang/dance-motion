@@ -340,6 +340,7 @@ function ChallengeScreen(props: {
   const musicRef = useRef(null as MusicPlayer | null);
   if (!musicRef.current) musicRef.current = new MusicPlayer();
   const [music, setMusic] = useState({ instrumental: "idle", vocals: false } as MusicStatus);
+  const [soundMsg, setSoundMsg] = useState("");
 
   const scorerRef = useRef(null as ChallengeScorer | null);
   const stageRef = useRef(null as Stage3D | null);
@@ -387,6 +388,8 @@ function ChallengeScreen(props: {
     setResults(null);
     setHud(HUD0);
     musicRef.current!.stop();
+    setSoundMsg("");
+    musicRef.current!.onProblem = (m) => setSoundMsg(m);
     if (settings.music) musicRef.current!.start(song, startRef.current, settings.audioOffsetMs);
     countRef.current = null;
     setCount(null);
@@ -586,6 +589,7 @@ function ChallengeScreen(props: {
         </div>
 
         {lost && playing && <div className="lost-banner">TRACKING LOST</div>}
+        {soundMsg && phase !== "ready" && <div className="wait-banner" onClick={() => setSoundMsg("")}>{soundMsg}</div>}
 
         {/* controls */}
         <div className="toolbar">
@@ -618,6 +622,19 @@ function ChallengeScreen(props: {
                 {music.instrumental === "error" && `Music failed to build: ${music.error}. `}
                 {song.audio === "synth" && music.instrumental === "ready" && (music.vocals ? "Music + sung vocals loaded. " : "Music ready (instrumental + synth melody — no sung vocals in this build; the lyrics are shown on screen). ")}
               </p>
+              {song.audio === "synth" && (
+                <div>
+                  <button
+                    className="btn ghost small"
+                    disabled={music.instrumental !== "ready" || !settings.music}
+                    onClick={async () => setSoundMsg(await musicRef.current!.preview(song))}
+                  >
+                    🔊 Test music
+                  </button>
+                  {!settings.music && <p className="hint">Music is turned off in ⚙ Settings.</p>}
+                  {soundMsg && <p className="hint">{soundMsg}</p>}
+                </div>
+              )}
               <p>Stand where the camera sees your <b>whole body</b>. During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you.</p>
               <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing (±{settings.tolerance.toFixed(1)} s).</p>
               <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error"} onClick={start}>START</button>

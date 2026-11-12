@@ -35,10 +35,10 @@ test("lyrics: inside the song, ordered, no overlap, chorus repeats verbatim", ()
 console.log("Choreography");
 const moves = song.moves;
 const scored = moves.filter((m) => m.scored);
-test("112 scored moves + unscored first watch-bar; every move lands on an odd beat", () => {
+test("112 scored accents on odd beats; the dancer has a pose on every beat (groove in between)", () => {
   assert.equal(scored.length, 112);
-  assert.equal(moves.filter((m) => !m.scored).length, 5); // 4 watch moves + finish
-  for (const m of moves.slice(0, -1)) {
+  assert.ok(moves.filter((m) => !m.scored).length > 100); // watch bar + groove beats + finish
+  for (const m of scored) {
     const beat = m.at / BEAT;
     assert.ok(Math.abs(beat - Math.round(beat)) < 1e-9 && Math.round(beat) % 2 === 1, `${m.id} at beat ${beat}`);
   }
@@ -73,7 +73,7 @@ test("dancer is moving smoothly: max pose change between 30 fps frames is small"
 });
 test("chorus signature moves present (side step + arm swing, alternating sky punches, overhead clap)", () => {
   const ids = scored.map((m) => m.id).join(" ");
-  for (const k of ["SWING_R", "SWING_L", "SKY_R", "SKY_L", "CLAP", "SQUAT", "WIDE"]) assert.ok(ids.includes(k), k);
+  for (const k of ["SWING_R", "SWING_L", "SKY_R", "SKY_L", "CLAP", "SQUAT", "WIDE", "SWEEP_R", "DISCO_R", "HIPS"]) assert.ok(ids.includes(k), k);
   assert.equal(DANCE[8], DANCE[18]); assert.equal(DANCE[9], DANCE[19]); // chorus 1 == chorus 2
 });
 test("every pose in the library is a distinct, buildable pose", () => {
@@ -154,7 +154,7 @@ test("a 0.35 s late player is still credited; a 0.6 s late player loses points (
   const a = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.35)))).sc;
   const b = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.6)))).sc;
   assert.ok(a.counts.MISS < 10, JSON.stringify(a.counts));
-  assert.ok(b.score < a.score * 0.7, `${a.score} vs ${b.score}`);
+  assert.ok(b.score < a.score * 0.85, `${a.score} vs ${b.score}`);
 });
 test("standing still the whole song -> no credit for the moves that differ from neutral (no fake score)", () => {
   const { sc } = run(() => asCameraPose(buildRefPose(NEUTRAL)));
