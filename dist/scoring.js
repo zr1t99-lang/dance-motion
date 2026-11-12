@@ -16,7 +16,11 @@ export const DEFAULT_SCORING = {
     heightMax: 0.3,
     confFull: 0.7,
     confZero: 0.35,
+    timingOffset: 0,
+    gateStrength: 0.4,
 };
+/** Scoring settings for music-driven dances (moves every ~0.94 s): small, centred timing windows. */
+export const SONG_SCORING = { ...DEFAULT_SCORING, timingOffset: 0.15, gateStrength: 0.2 };
 /** Share of the angle/position score taken from the worse arm (rest = weighted mean of all limbs). */
 const ARM_MIN_BLEND = 0.7;
 const falloff = (err, tol, max) => Math.min(1, Math.max(0, 1 - (err - tol) / (max - tol)));
@@ -64,7 +68,7 @@ export function similarity(ref, player, w, cfg, segVis) {
     const wsum = w.angle + w.pos + w.shift + w.height;
     // Gate: body travel / squat depth that doesn't match the reference (e.g. stepping sideways or
     // squatting when the move is "just raise an arm") scales the whole score down.
-    const gate = 0.6 + 0.4 * Math.min(shift, height);
+    const gate = 1 - cfg.gateStrength + cfg.gateStrength * Math.min(shift, height);
     const total = ((angle * w.angle + position * w.pos + shift * w.shift + height * w.height) / wsum) * gate;
     return { total, angle, position, shift, height };
 }
@@ -108,6 +112,13 @@ export class ChallengeScorer {
             move, judged: false, judgment: null, best: 0, bestParts: null, bestDt: null, frames: 0, points: 0,
         }));
         this.targets = scored.map((m) => refComparable(m.spec));
+        // spacing to the neighbouring scored moves: windows must never overlap, or one held pose could score twice
+        this.gap = scored.map((m, i) => Math.min(i > 0 ? m.at - scored[i - 1].at : Infinity, i < scored.length - 1 ? scored[i + 1].at - m.at : Infinity));
+    }
+    gap;
+    /** Half-width (s) of move i's timing window: the configured tolerance, capped to 45% of the spacing. */
+    windowOf(i) {
+        return Math.min(this.cfg.timingTolerance, 0.45 * this.gap[i]);
     }
     /**
      * Feed a detected pose. `t` is choreography time in seconds (negative during the countdown,
@@ -133,11 +144,13 @@ export class ChallengeScorer {
             const r = this.results[i];
             if (r.judged)
                 continue;
-            const dt = t - r.move.at;
-            if (Math.abs(dt) > this.cfg.timingTolerance)
+            const dt = t - r.move.at; // real offset from the beat (reported in results)
+            const tol = this.windowOf(i);
+            const dtc = dt - this.cfg.timingOffset; // offset from the centre of the window
+            if (Math.abs(dtc) > tol)
                 continue;
             const parts = similarity(this.targets[i], comp, r.move.weights, this.cfg, f.segVis);
-            const total = parts.total * cf * timingFactor(dt, this.cfg.timingTolerance);
+            const total = parts.total * cf * timingFactor(dtc, tol);
             r.frames++;
             if (total > r.best) {
                 r.best = total;
@@ -151,7 +164,7 @@ export class ChallengeScorer {
         const out = [];
         for (let i = 0; i < this.results.length; i++) {
             const r = this.results[i];
-            if (r.judged || t <= r.move.at + this.cfg.timingTolerance)
+            if (r.judged || t <= r.move.at + this.cfg.timingOffset + this.windowOf(i))
                 continue;
             r.judged = true;
             r.judgment = classify(r.best, this.cfg);

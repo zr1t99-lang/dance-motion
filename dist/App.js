@@ -5,10 +5,12 @@ import { CameraError } from "./camera.js";
 import { TrackerError } from "./tracker.js";
 import { Stage3D, StageError } from "./stage3d.js";
 import { INSTRUCTOR_STYLE, PLAYER_STYLE } from "./avatar3d.js";
-import { BeatAudio } from "./audio.js";
+import { MusicPlayer } from "./songPlayer.js";
+import { buildSunshineShake } from "./songs/sunshineShake.js";
+import { buildTestRoutine } from "./songs/testRoutine.js";
 import { Choreography, buildRefPose, refComparable } from "./choreography.js";
 import { BODY_GROUPS, computeFeatures, groupInFrame } from "./poseMath.js";
-import { ChallengeScorer, DEFAULT_SCORING } from "./scoring.js";
+import { ChallengeScorer } from "./scoring.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import { DebugPanel, PreviewBox, SettingsPanel, Stars, StickFigure, Toast, TVPanel, useStageBox } from "./ui.js";
 function toAppError(e) {
@@ -52,7 +54,7 @@ function StageCanvas(props) {
 /* -------------------------------------------------------------- screens */
 function Menu(props) {
     const insecure = !window.isSecureContext;
-    return (_jsxs("div", { className: "screen menu", children: [_jsxs("div", { className: "menu-title", children: [_jsx("span", { children: "DANCE" }), _jsx("span", { className: "alt", children: "MOTION" })] }), _jsx("div", { className: "menu-sub", children: "Real camera body-tracking \u00B7 prototype" }), insecure && (_jsx("div", { className: "warn", children: "This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README)." })), _jsxs("div", { className: "menu-cards", children: [_jsxs("button", { className: "card pink", onClick: () => props.onStart("challenge"), children: [_jsx("div", { className: "card-t", children: "DANCE CHALLENGE" }), _jsx("div", { className: "card-d", children: "Copy the instructor in a 30-second routine. Scored on joint angles, position and timing." })] }), _jsxs("button", { className: "card blue", onClick: () => props.onStart("mirror"), children: [_jsx("div", { className: "card-t", children: "MOTION MIRROR" }), _jsx("div", { className: "card-d", children: "A 3D avatar that mirrors your body live from the camera. No pre-made animation." })] })] }), _jsxs("div", { className: "menu-row", children: [_jsx("button", { className: "pill", onClick: props.onSettings, children: "\u2699 Settings" }), _jsx("button", { className: "pill", onClick: props.onTV, children: "\uD83D\uDCFA TV Mode" }), _jsx("button", { className: "pill", onClick: props.onFullscreen, children: "\u26F6 Fullscreen" })] }), _jsx("div", { className: "menu-foot", children: "The camera only starts after you tap a mode. Video never leaves your device: pose detection runs locally in the browser." })] }));
+    return (_jsxs("div", { className: "screen menu", children: [_jsxs("div", { className: "menu-title", children: [_jsx("span", { children: "DANCE" }), _jsx("span", { className: "alt", children: "MOTION" })] }), _jsx("div", { className: "menu-sub", children: "Real camera body-tracking \u00B7 prototype" }), insecure && (_jsx("div", { className: "warn", children: "This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README)." })), _jsxs("div", { className: "menu-cards", children: [_jsxs("button", { className: "card pink", onClick: () => props.onStart("challenge"), children: [_jsx("div", { className: "card-t", children: "DANCE COPY" }), _jsx("div", { className: "card-d", children: "Copy the dancer to an original song. Scored on joint angles, position and timing." })] }), _jsxs("button", { className: "card blue", onClick: () => props.onStart("mirror"), children: [_jsx("div", { className: "card-t", children: "MOTION MIRROR" }), _jsx("div", { className: "card-d", children: "A 3D avatar that mirrors your body live from the camera. No pre-made animation." })] })] }), _jsxs("div", { className: "menu-row", children: [_jsx("button", { className: "pill", onClick: props.onSettings, children: "\u2699 Settings" }), _jsx("button", { className: "pill", onClick: props.onTV, children: "\uD83D\uDCFA TV Mode" }), _jsx("button", { className: "pill", onClick: props.onFullscreen, children: "\u26F6 Fullscreen" })] }), _jsx("div", { className: "menu-foot", children: "The camera only starts after you tap a mode. Video never leaves your device: pose detection runs locally in the browser." })] }));
 }
 function Loading({ msg }) {
     return (_jsxs("div", { className: "screen center", children: [_jsx("div", { className: "spinner" }), _jsx("div", { className: "big-msg", children: msg }), _jsx("div", { className: "dim", children: "First start downloads the pose model (a few MB). Needs an internet connection." })] }));
@@ -148,12 +150,30 @@ function MirrorScreen(props) {
                 }, onError: props.onFatal }), _jsxs("div", { className: "hud", children: [_jsxs("div", { className: "badge top-left", children: [_jsx("div", { className: "badge-t", children: "MOTION MIRROR" }), _jsxs("div", { className: "badge-s", children: [info.lost ? "—" : `Confidence ${Math.round(info.conf * 100)}%`, " \u00B7 Cam ", info.cam === null ? "n/a" : info.cam.toFixed(0), " fps \u00B7 Pose ", info.pose.toFixed(0), " fps"] })] }), _jsx(PreviewBox, { engine: engine, mirror: settings.mirror, overlay: settings.overlay, lost: info.lost && info.had, className: "side" }), info.lost && info.had && _jsx("div", { className: "lost-banner", children: "TRACKING LOST" }), !info.had && _jsx("div", { className: "wait-banner", children: "Step into view: waiting for your body to be detected\u2026" }), _jsxs("div", { className: "toolbar", children: [_jsx("button", { onClick: () => props.onSwitch(props.facing === "user" ? "environment" : "user"), children: "\u27F2 Camera" }), _jsx("button", { onClick: props.onMirror, children: settings.mirror ? "Mirror: On" : "Mirror: Off" }), _jsx("button", { onClick: () => props.onSettings(), children: "\u2699" }), _jsx("button", { className: props.showDebug ? "sel" : "", onClick: props.onToggleDebug, children: "Debug" }), _jsx("button", { onClick: props.onExit, children: "\u2715 Exit" })] }), props.showDebug && _jsx(DebugPanel, { engine: engine, facing: props.facing, onSwitch: props.onSwitch, onClose: props.onToggleDebug })] })] }));
 }
 const HUD0 = { t: 0, score: 0, combo: 0, acc: 0, stars: 0, nextIdx: 0, counts: { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 }, last: null };
+function currentLyric(song, beat) {
+    const L = song.lyrics;
+    for (let i = 0; i < L.length; i++) {
+        const l = L[i];
+        if (beat >= l.beat && beat < l.beat + l.len + 0.5)
+            return { line: l, progress: Math.min(1, Math.max(0, (beat - l.beat) / l.len)), next: L[i + 1] ?? null };
+        if (beat < l.beat)
+            return beat > l.beat - 4 ? { line: l, progress: 0, next: L[i + 1] ?? null } : null;
+    }
+    return null;
+}
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 function ChallengeScreen(props) {
     const { engine, settings } = props;
-    const choreo = useMemo(() => new Choreography(), []);
-    const targets = useMemo(() => choreo.moves.map((m) => refComparable(m.spec)), [choreo]);
+    const songs = useMemo(() => [buildSunshineShake(), buildTestRoutine()], []);
+    const [songId, setSongId] = useState(songs[0].id);
+    const song = songs.find((x) => x.id === songId) ?? songs[0];
+    const choreo = useMemo(() => new Choreography(song.moves, song.choreo), [song]);
     const scored = choreo.scoredMoves;
+    const endT = song.audio === "synth" ? song.totalBeats * song.beatSec : choreo.duration;
+    const musicRef = useRef(null);
+    if (!musicRef.current)
+        musicRef.current = new MusicPlayer();
+    const [music, setMusic] = useState({ instrumental: "idle", vocals: false });
     const scorerRef = useRef(null);
     const stageRef = useRef(null);
     const phaseRef = useRef("ready");
@@ -164,7 +184,6 @@ function ChallengeScreen(props) {
     };
     const startRef = useRef(0); // performance.now() at choreography t = 0
     const pausedT = useRef(0);
-    const audioRef = useRef(null);
     const lastFeat = useRef(null);
     const lastHudAt = useRef(0);
     const keyRef = useRef(0);
@@ -179,7 +198,7 @@ function ChallengeScreen(props) {
     const finish = () => {
         const sc = scorerRef.current;
         sc.tick(1e9);
-        audioRef.current?.stop();
+        musicRef.current?.stop();
         const acc = sc.finalAccuracy;
         setResults({
             score: sc.score,
@@ -192,31 +211,29 @@ function ChallengeScreen(props) {
         setPhase("done");
     };
     const start = () => {
-        scorerRef.current = new ChallengeScorer(choreo, { ...DEFAULT_SCORING, timingTolerance: settings.tolerance });
-        startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: first audio beat is scheduled 0.1 s ahead
+        scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: settings.tolerance });
+        startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: audio is scheduled slightly ahead
         lastJudge.current = null;
         keyRef.current = 0;
         setResults(null);
         setHud(HUD0);
-        audioRef.current?.stop();
-        if (settings.music) {
-            audioRef.current = new BeatAudio();
-            audioRef.current.start();
-        }
-        else
-            audioRef.current = null;
+        musicRef.current.stop();
+        if (settings.music)
+            musicRef.current.start(song, startRef.current, settings.audioOffsetMs);
+        countRef.current = null;
+        setCount(null);
         setPhase("countdown");
     };
     const pause = () => {
         if (phaseRef.current !== "playing" && phaseRef.current !== "countdown")
             return;
         pausedT.current = tRef.current;
-        audioRef.current?.pause();
+        musicRef.current?.pause();
         setPhase("paused");
     };
     const resume = () => {
         startRef.current = performance.now() - pausedT.current * 1000;
-        audioRef.current?.resume();
+        musicRef.current?.resume();
         setPhase(pausedT.current < 0 ? "countdown" : "playing");
     };
     // pause automatically if the tab/app goes to the background
@@ -240,7 +257,16 @@ function ChallengeScreen(props) {
         else
             lastFeat.current = null;
     }), [engine]);
-    useEffect(() => () => audioRef.current?.stop(), []);
+    useEffect(() => () => musicRef.current?.stop(), []);
+    // render the instrumental (in a worker) as soon as a song is selected
+    useEffect(() => {
+        let alive = true;
+        setMusic({ instrumental: song.audio === "synth" ? "rendering" : "ready", vocals: false });
+        musicRef.current.prepare(song).then((st) => alive && setMusic({ ...st }));
+        return () => {
+            alive = false;
+        };
+    }, [song]);
     const frame = (_dt, now) => {
         const stage = stageRef.current;
         if (!stage)
@@ -255,7 +281,8 @@ function ChallengeScreen(props) {
         // The instructor performs exactly the reference poses used by the scorer.
         stage.avatar.setFromReference(choreo.poseAt(Math.max(0, t)));
         // decorative beat pulse on the arch only (never touches the instructor's pose)
-        const beatPhase = ((((t + choreo.leadIn) % 0.5) + 0.5) % 0.5) / 0.5;
+        const bs = song.beatSec;
+        const beatPhase = (((t % bs) + bs) % bs) / bs;
         stage.pulse(ph === "playing" || ph === "countdown" ? 1 - beatPhase : 0);
         const isLost = engine.trackingLost(now);
         if (isLost !== lostRef.current) {
@@ -289,12 +316,12 @@ function ChallengeScreen(props) {
                     combo: sc.combo,
                     acc: sc.accuracy,
                     stars: sc.stars,
-                    nextIdx: choreo.nextMoveIndex(t, sc.cfg.timingTolerance),
+                    nextIdx: choreo.nextMoveIndex(t, Math.min(sc.cfg.timingTolerance, 0.42) + sc.cfg.timingOffset),
                     counts: { ...sc.counts },
                     last: lastJudge.current,
                 });
             }
-            if (t >= choreo.duration)
+            if (t >= endT)
                 finish();
         }
     };
@@ -312,12 +339,15 @@ function ChallengeScreen(props) {
     };
     const upcoming = [hud.nextIdx, hud.nextIdx + 1, hud.nextIdx + 2].map((i) => scored[i]).filter(Boolean);
     const playing = phase === "playing" || phase === "paused";
+    const beatNow = hud.t / song.beatSec;
+    const section = song.sections.find((x) => beatNow >= x.startBeat && beatNow < x.startBeat + x.beats)?.name ?? "";
+    const lyric = playing || phase === "countdown" ? currentLyric(song, beatNow) : null;
     const judgeColor = { PERFECT: "perfect", GREAT: "great", GOOD: "good", MISS: "miss" };
     return (_jsxs(_Fragment, { children: [_jsx(StageCanvas, { style: INSTRUCTOR_STYLE, reflections: settings.reflections, onStage: (s) => {
                     stageRef.current = s;
                     if (s)
                         s.onFrame = (dt, now) => frameRef.current(dt, now);
-                }, onError: props.onFatal }), _jsxs("div", { className: "hud", children: [_jsxs("div", { className: "song", children: [_jsx("div", { className: "song-ic", children: "\u266A" }), _jsxs("div", { className: "song-body", children: [_jsx("div", { className: "song-t", children: "Dance Challenge" }), _jsx("div", { className: "song-s", children: "Original Test Routine" }), _jsxs("div", { className: "song-bar", children: [_jsx("div", { className: "bar", children: _jsx("div", { style: { width: Math.min(100, (hud.t / choreo.duration) * 100) + "%" } }) }), _jsxs("span", { children: [fmtTime(hud.t), " / ", fmtTime(choreo.duration)] })] })] })] }), _jsxs("div", { className: "top-center", children: [_jsx(Stars, { n: hud.stars }), _jsxs("div", { className: "score", children: [_jsx("small", { children: "SCORE" }), " ", hud.score.toLocaleString()] })] }), _jsxs("div", { className: "acc", children: [_jsx("div", { className: "acc-l", children: "Accuracy" }), _jsxs("div", { className: "acc-v", children: [playing || phase === "done" ? Math.round(hud.acc) : 0, "%"] })] }), hud.last && _jsxs("div", { className: "popup " + judgeColor[hud.last.j], children: [hud.last.j, hud.last.j !== "MISS" ? "!" : ""] }, hud.last.key), _jsx("div", { className: "ladder", children: ["PERFECT", "GREAT", "GOOD", "MISS"].map((j) => (_jsxs("div", { className: "lad " + judgeColor[j] + (hud.last?.j === j ? " on" : ""), children: [j, _jsx("b", { children: hud.counts[j] })] }, j))) }), _jsxs("div", { className: "combo", children: [_jsx("small", { children: "Combo" }), _jsxs("span", { children: ["x", hud.combo] }, hud.combo)] }), _jsx(PreviewBox, { engine: engine, mirror: settings.mirror, overlay: settings.overlay, lost: lost, className: "side" }), _jsxs("div", { className: "next", children: [_jsx("div", { className: "next-t", children: "Next Move" }), _jsxs("div", { className: "next-row", children: [upcoming.length === 0 && _jsx("div", { className: "dim", children: phase === "done" ? "Finished" : "Last move" }), upcoming.map((m, i) => (_jsx("div", { className: "next-i " + (i === 0 ? "first" : ""), children: _jsx(StickFigure, { pose: buildRefPose(m.spec), active: i === 0 }) }, m.id)))] }), _jsx("div", { className: "next-n", children: upcoming[0] ? upcoming[0].name : "" })] }), lost && playing && _jsx("div", { className: "lost-banner", children: "TRACKING LOST" }), _jsxs("div", { className: "toolbar", children: [phase === "playing" && _jsx("button", { onClick: pause, children: "\u275A\u275A Pause" }), _jsx("button", { onClick: () => props.onSwitch(props.facing === "user" ? "environment" : "user"), children: "\u27F2 Camera" }), _jsx("button", { className: props.showDebug ? "sel" : "", onClick: props.onToggleDebug, children: "Debug" }), _jsx("button", { onClick: props.onSettings, children: "\u2699" }), _jsx("button", { onClick: props.onExit, children: "\u2715 Exit" })] }), props.showDebug && _jsx(DebugPanel, { engine: engine, getExtra: getExtra, facing: props.facing, onSwitch: props.onSwitch, onClose: props.onToggleDebug }), phase === "ready" && (_jsx("div", { className: "overlay clear", children: _jsxs("div", { className: "panel ready", children: [_jsx("h2", { children: "Ready?" }), _jsxs("p", { children: ["Stand where the camera sees your ", _jsx("b", { children: "whole body" }), ". During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you."] }), _jsxs("p", { children: ["Copy the dancer like a mirror: your ", _jsx("b", { children: "right" }), " arm is the arm on the ", _jsx("b", { children: "right side of the screen" }), ". Each move is scored on joint angles, relative positions and timing (\u00B1", settings.tolerance.toFixed(1), " s)."] }), _jsx("button", { className: "btn", onClick: start, children: "START" })] }) })), phase === "countdown" && count !== null && count > 0 && _jsx("div", { className: "count", children: count }, count), phase === "playing" && count === 0 && _jsx("div", { className: "count go", children: "GO!" }), phase === "paused" && (_jsx("div", { className: "overlay clear", children: _jsxs("div", { className: "panel ready", children: [_jsx("h2", { children: "Paused" }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { className: "btn", onClick: resume, children: "Resume" }), _jsx("button", { className: "btn ghost", onClick: props.onExit, children: "Quit" })] })] }) })), phase === "done" && results && (_jsx("div", { className: "overlay clear", children: _jsxs("div", { className: "panel results", children: [_jsx("h2", { children: "Routine complete" }), _jsx(Stars, { n: results.stars }), _jsxs("div", { className: "res-top", children: [_jsxs("div", { children: [_jsx("small", { children: "SCORE" }), _jsx("b", { children: results.score.toLocaleString() })] }), _jsxs("div", { children: [_jsx("small", { children: "ACCURACY" }), _jsxs("b", { children: [Math.round(results.accuracy), "%"] })] }), _jsxs("div", { children: [_jsx("small", { children: "MAX COMBO" }), _jsxs("b", { children: ["x", results.maxCombo] })] })] }), _jsx("div", { className: "res-counts", children: ["PERFECT", "GREAT", "GOOD", "MISS"].map((j) => (_jsxs("span", { className: judgeColor[j], children: [j, " ", results.counts[j]] }, j))) }), _jsx("div", { className: "res-moves", children: results.moves.map((r) => (_jsxs("div", { className: "res-m", children: [_jsx("span", { children: r.move.name }), _jsx("span", { className: judgeColor[r.judgment ?? "MISS"], children: r.judgment }), _jsxs("span", { children: [Math.round(r.best * 100), "%"] }), _jsx("span", { className: "dim", children: r.bestDt === null ? "not detected" : `${r.bestDt >= 0 ? "+" : ""}${Math.round(r.bestDt * 1000)} ms` })] }, r.move.id))) }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { className: "btn", onClick: () => setPhase("ready"), children: "Play again" }), _jsx("button", { className: "btn ghost", onClick: props.onExit, children: "Menu" })] })] }) }))] })] }));
+                }, onError: props.onFatal }), _jsxs("div", { className: "hud", children: [_jsxs("div", { className: "song", children: [_jsx("div", { className: "song-ic", children: "\u266A" }), _jsxs("div", { className: "song-body", children: [_jsx("div", { className: "song-t", children: song.title }), _jsx("div", { className: "song-s", children: playing ? section : song.artist }), _jsxs("div", { className: "song-bar", children: [_jsx("div", { className: "bar", children: _jsx("div", { style: { width: Math.min(100, (hud.t / endT) * 100) + "%" } }) }), _jsxs("span", { children: [fmtTime(hud.t), " / ", fmtTime(endT)] })] })] })] }), _jsxs("div", { className: "top-center", children: [_jsx(Stars, { n: hud.stars }), _jsxs("div", { className: "score", children: [_jsx("small", { children: "SCORE" }), " ", hud.score.toLocaleString()] })] }), _jsxs("div", { className: "acc", children: [_jsx("div", { className: "acc-l", children: "Accuracy" }), _jsxs("div", { className: "acc-v", children: [playing || phase === "done" ? Math.round(hud.acc) : 0, "%"] })] }), hud.last && _jsxs("div", { className: "popup " + judgeColor[hud.last.j], children: [hud.last.j, hud.last.j !== "MISS" ? "!" : ""] }, hud.last.key), _jsx("div", { className: "ladder", children: ["PERFECT", "GREAT", "GOOD", "MISS"].map((j) => (_jsxs("div", { className: "lad " + judgeColor[j] + (hud.last?.j === j ? " on" : ""), children: [j, _jsx("b", { children: hud.counts[j] })] }, j))) }), lyric && (_jsxs("div", { className: "lyrics", "data-who": lyric.line.who, children: [_jsx("div", { className: "lyr-now", style: { ["--p"]: Math.round(lyric.progress * 100) + "%" }, children: lyric.line.text }), lyric.next && _jsx("div", { className: "lyr-next", children: lyric.next.text })] })), _jsxs("div", { className: "combo", children: [_jsx("small", { children: "Combo" }), _jsxs("span", { children: ["x", hud.combo] }, hud.combo)] }), _jsx(PreviewBox, { engine: engine, mirror: settings.mirror, overlay: settings.overlay, lost: lost, className: "side" }), _jsxs("div", { className: "next", children: [_jsx("div", { className: "next-t", children: "Next Move" }), _jsxs("div", { className: "next-row", children: [upcoming.length === 0 && _jsx("div", { className: "dim", children: phase === "done" ? "Finished" : "Last move" }), upcoming.map((m, i) => (_jsx("div", { className: "next-i " + (i === 0 ? "first" : ""), children: _jsx(StickFigure, { pose: buildRefPose(m.spec), active: i === 0 }) }, m.id)))] }), _jsx("div", { className: "next-n", children: upcoming[0] ? upcoming[0].name : "" })] }), lost && playing && _jsx("div", { className: "lost-banner", children: "TRACKING LOST" }), _jsxs("div", { className: "toolbar", children: [phase === "playing" && _jsx("button", { onClick: pause, children: "\u275A\u275A Pause" }), phase === "paused" && _jsx("button", { onClick: resume, children: "\u25B6 Play" }), (phase === "playing" || phase === "paused" || phase === "countdown") && _jsx("button", { onClick: start, children: "\u21BB Restart" }), _jsx("button", { onClick: () => props.onSwitch(props.facing === "user" ? "environment" : "user"), children: "\u27F2 Camera" }), _jsx("button", { className: props.showDebug ? "sel" : "", onClick: props.onToggleDebug, children: "Debug" }), _jsx("button", { onClick: props.onSettings, children: "\u2699" }), _jsx("button", { onClick: props.onExit, children: "\u2715 Exit" })] }), props.showDebug && _jsx(DebugPanel, { engine: engine, getExtra: getExtra, facing: props.facing, onSwitch: props.onSwitch, onClose: props.onToggleDebug }), phase === "ready" && (_jsx("div", { className: "overlay clear", children: _jsxs("div", { className: "panel ready", children: [_jsx("h2", { children: "Dance Copy" }), _jsx("div", { className: "song-pick", children: songs.map((x) => (_jsxs("button", { className: "sp" + (x.id === song.id ? " sel" : ""), onClick: () => setSongId(x.id), children: [_jsx("b", { children: x.title }), _jsx("span", { children: x.blurb })] }, x.id))) }), _jsxs("p", { className: "hint", children: [music.instrumental === "rendering" && "Preparing the music… ", music.instrumental === "error" && `Music failed to build: ${music.error}. `, song.audio === "synth" && music.instrumental === "ready" && (music.vocals ? "Music + sung vocals loaded. " : "Music ready (instrumental + synth melody — no sung vocals in this build; the lyrics are shown on screen). ")] }), _jsxs("p", { children: ["Stand where the camera sees your ", _jsx("b", { children: "whole body" }), ". During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you."] }), _jsxs("p", { children: ["Copy the dancer like a mirror: your ", _jsx("b", { children: "right" }), " arm is the arm on the ", _jsx("b", { children: "right side of the screen" }), ". Each move is scored on joint angles, relative positions and timing (\u00B1", settings.tolerance.toFixed(1), " s)."] }), _jsx("button", { className: "btn", disabled: music.instrumental === "rendering" || music.instrumental === "error", onClick: start, children: "START" })] }) })), phase === "countdown" && count !== null && count > 0 && _jsx("div", { className: "count", children: count }, count), phase === "playing" && count === 0 && _jsx("div", { className: "count go", children: "GO!" }), phase === "paused" && (_jsx("div", { className: "overlay clear", children: _jsxs("div", { className: "panel ready", children: [_jsx("h2", { children: "Paused" }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { className: "btn", onClick: resume, children: "Resume" }), _jsx("button", { className: "btn ghost", onClick: start, children: "Restart" }), _jsx("button", { className: "btn ghost", onClick: props.onExit, children: "Quit" })] })] }) })), phase === "done" && results && (_jsx("div", { className: "overlay clear", children: _jsxs("div", { className: "panel results", children: [_jsxs("h2", { children: [song.title, " complete"] }), _jsx(Stars, { n: results.stars }), _jsxs("div", { className: "res-top", children: [_jsxs("div", { children: [_jsx("small", { children: "SCORE" }), _jsx("b", { children: results.score.toLocaleString() })] }), _jsxs("div", { children: [_jsx("small", { children: "ACCURACY" }), _jsxs("b", { children: [Math.round(results.accuracy), "%"] })] }), _jsxs("div", { children: [_jsx("small", { children: "MAX COMBO" }), _jsxs("b", { children: ["x", results.maxCombo] })] })] }), _jsx("div", { className: "res-counts", children: ["PERFECT", "GREAT", "GOOD", "MISS"].map((j) => (_jsxs("span", { className: judgeColor[j], children: [j, " ", results.counts[j]] }, j))) }), _jsx("div", { className: "res-moves", children: results.moves.map((r) => (_jsxs("div", { className: "res-m", children: [_jsx("span", { children: r.move.name }), _jsx("span", { className: judgeColor[r.judgment ?? "MISS"], children: r.judgment }), _jsxs("span", { children: [Math.round(r.best * 100), "%"] }), _jsx("span", { className: "dim", children: r.bestDt === null ? "not detected" : `${r.bestDt >= 0 ? "+" : ""}${Math.round(r.bestDt * 1000)} ms` })] }, r.move.id))) }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { className: "btn", onClick: () => setPhase("ready"), children: "Play again" }), _jsx("button", { className: "btn ghost", onClick: props.onExit, children: "Menu" })] })] }) }))] })] }));
 }
 export function App() {
     const box = useStageBox();

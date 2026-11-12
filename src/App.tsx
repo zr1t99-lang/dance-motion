@@ -4,10 +4,13 @@ import { CameraError } from "./camera.js";
 import { TrackerError } from "./tracker.js";
 import { Stage3D, StageError } from "./stage3d.js";
 import { INSTRUCTOR_STYLE, PLAYER_STYLE, type AvatarStyle } from "./avatar3d.js";
-import { BeatAudio } from "./audio.js";
+import { MusicPlayer, type MusicStatus } from "./songPlayer.js";
+import { buildSunshineShake } from "./songs/sunshineShake.js";
+import { buildTestRoutine } from "./songs/testRoutine.js";
+import type { SongDef } from "./songs/types.js";
 import { Choreography, buildRefPose, refComparable } from "./choreography.js";
 import { BODY_GROUPS, computeFeatures, groupInFrame, type Features } from "./poseMath.js";
-import { ChallengeScorer, DEFAULT_SCORING, type MoveResult } from "./scoring.js";
+import { ChallengeScorer, type MoveResult } from "./scoring.js";
 import { loadSettings, saveSettings, type Settings } from "./settings.js";
 import { LM, type Facing, type Judgment } from "./types.js";
 import { DebugPanel, PreviewBox, SettingsPanel, Stars, StickFigure, Toast, TVPanel, useStageBox } from "./ui.js";
@@ -82,8 +85,8 @@ function Menu(props: { onStart: (m: "mirror" | "challenge") => void; onSettings:
       )}
       <div className="menu-cards">
         <button className="card pink" onClick={() => props.onStart("challenge")}>
-          <div className="card-t">DANCE CHALLENGE</div>
-          <div className="card-d">Copy the instructor in a 30-second routine. Scored on joint angles, position and timing.</div>
+          <div className="card-t">DANCE COPY</div>
+          <div className="card-d">Copy the dancer to an original song. Scored on joint angles, position and timing.</div>
         </button>
         <button className="card blue" onClick={() => props.onStart("mirror")}>
           <div className="card-t">MOTION MIRROR</div>
@@ -304,6 +307,16 @@ interface Results {
   stars: number;
 }
 
+function currentLyric(song: SongDef, beat: number) {
+  const L = song.lyrics;
+  for (let i = 0; i < L.length; i++) {
+    const l = L[i];
+    if (beat >= l.beat && beat < l.beat + l.len + 0.5) return { line: l, progress: Math.min(1, Math.max(0, (beat - l.beat) / l.len)), next: L[i + 1] ?? null };
+    if (beat < l.beat) return beat > l.beat - 4 ? { line: l, progress: 0, next: L[i + 1] ?? null } : null;
+  }
+  return null;
+}
+
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 function ChallengeScreen(props: {
@@ -318,9 +331,15 @@ function ChallengeScreen(props: {
   onFatal: (e: any) => void;
 }) {
   const { engine, settings } = props;
-  const choreo = useMemo(() => new Choreography(), []);
-  const targets = useMemo(() => choreo.moves.map((m) => refComparable(m.spec)), [choreo]);
+  const songs = useMemo(() => [buildSunshineShake(), buildTestRoutine()] as SongDef[], []);
+  const [songId, setSongId] = useState(songs[0].id);
+  const song = songs.find((x) => x.id === songId) ?? songs[0];
+  const choreo = useMemo(() => new Choreography(song.moves, song.choreo), [song]);
   const scored = choreo.scoredMoves;
+  const endT = song.audio === "synth" ? song.totalBeats * song.beatSec : choreo.duration;
+  const musicRef = useRef(null as MusicPlayer | null);
+  if (!musicRef.current) musicRef.current = new MusicPlayer();
+  const [music, setMusic] = useState({ instrumental: "idle", vocals: false } as MusicStatus);
 
   const scorerRef = useRef(null as ChallengeScorer | null);
   const stageRef = useRef(null as Stage3D | null);
@@ -332,7 +351,6 @@ function ChallengeScreen(props: {
   };
   const startRef = useRef(0); // performance.now() at choreography t = 0
   const pausedT = useRef(0);
-  const audioRef = useRef(null as BeatAudio | null);
   const lastFeat = useRef(null as Features | null);
   const lastHudAt = useRef(0);
   const keyRef = useRef(0);
@@ -348,7 +366,7 @@ function ChallengeScreen(props: {
   const finish = () => {
     const sc = scorerRef.current!;
     sc.tick(1e9);
-    audioRef.current?.stop();
+    musicRef.current?.stop();
     const acc = sc.finalAccuracy;
     setResults({
       score: sc.score,
@@ -362,29 +380,28 @@ function ChallengeScreen(props: {
   };
 
   const start = () => {
-    scorerRef.current = new ChallengeScorer(choreo, { ...DEFAULT_SCORING, timingTolerance: settings.tolerance });
-    startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: first audio beat is scheduled 0.1 s ahead
+    scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: settings.tolerance });
+    startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: audio is scheduled slightly ahead
     lastJudge.current = null;
     keyRef.current = 0;
     setResults(null);
     setHud(HUD0);
-    audioRef.current?.stop();
-    if (settings.music) {
-      audioRef.current = new BeatAudio();
-      audioRef.current.start();
-    } else audioRef.current = null;
+    musicRef.current!.stop();
+    if (settings.music) musicRef.current!.start(song, startRef.current, settings.audioOffsetMs);
+    countRef.current = null;
+    setCount(null);
     setPhase("countdown");
   };
 
   const pause = () => {
     if (phaseRef.current !== "playing" && phaseRef.current !== "countdown") return;
     pausedT.current = tRef.current;
-    audioRef.current?.pause();
+    musicRef.current?.pause();
     setPhase("paused");
   };
   const resume = () => {
     startRef.current = performance.now() - pausedT.current * 1000;
-    audioRef.current?.resume();
+    musicRef.current?.resume();
     setPhase(pausedT.current < 0 ? "countdown" : "playing");
   };
 
@@ -411,7 +428,17 @@ function ChallengeScreen(props: {
     [engine],
   );
 
-  useEffect(() => () => audioRef.current?.stop(), []);
+  useEffect(() => () => musicRef.current?.stop(), []);
+
+  // render the instrumental (in a worker) as soon as a song is selected
+  useEffect(() => {
+    let alive = true;
+    setMusic({ instrumental: song.audio === "synth" ? "rendering" : "ready", vocals: false });
+    musicRef.current!.prepare(song).then((st) => alive && setMusic({ ...st }));
+    return () => {
+      alive = false;
+    };
+  }, [song]);
 
   const frame = (_dt: number, now: number) => {
     const stage = stageRef.current;
@@ -425,7 +452,8 @@ function ChallengeScreen(props: {
     // The instructor performs exactly the reference poses used by the scorer.
     stage.avatar.setFromReference(choreo.poseAt(Math.max(0, t)));
     // decorative beat pulse on the arch only (never touches the instructor's pose)
-    const beatPhase = ((((t + choreo.leadIn) % 0.5) + 0.5) % 0.5) / 0.5;
+    const bs = song.beatSec;
+    const beatPhase = (((t % bs) + bs) % bs) / bs;
     stage.pulse(ph === "playing" || ph === "countdown" ? 1 - beatPhase : 0);
 
     const isLost = engine.trackingLost(now);
@@ -459,12 +487,12 @@ function ChallengeScreen(props: {
           combo: sc.combo,
           acc: sc.accuracy,
           stars: sc.stars,
-          nextIdx: choreo.nextMoveIndex(t, sc.cfg.timingTolerance),
+          nextIdx: choreo.nextMoveIndex(t, Math.min(sc.cfg.timingTolerance, 0.42) + sc.cfg.timingOffset),
           counts: { ...sc.counts },
           last: lastJudge.current,
         });
       }
-      if (t >= choreo.duration) finish();
+      if (t >= endT) finish();
     }
   };
   const frameRef = useRef(frame);
@@ -481,6 +509,9 @@ function ChallengeScreen(props: {
 
   const upcoming = [hud.nextIdx, hud.nextIdx + 1, hud.nextIdx + 2].map((i) => scored[i]).filter(Boolean);
   const playing = phase === "playing" || phase === "paused";
+  const beatNow = hud.t / song.beatSec;
+  const section = song.sections.find((x) => beatNow >= x.startBeat && beatNow < x.startBeat + x.beats)?.name ?? "";
+  const lyric = playing || phase === "countdown" ? currentLyric(song, beatNow) : null;
   const judgeColor: Record<Judgment, string> = { PERFECT: "perfect", GREAT: "great", GOOD: "good", MISS: "miss" };
 
   return (
@@ -499,11 +530,11 @@ function ChallengeScreen(props: {
         <div className="song">
           <div className="song-ic">♪</div>
           <div className="song-body">
-            <div className="song-t">Dance Challenge</div>
-            <div className="song-s">Original Test Routine</div>
+            <div className="song-t">{song.title}</div>
+            <div className="song-s">{playing ? section : song.artist}</div>
             <div className="song-bar">
-              <div className="bar"><div style={{ width: Math.min(100, (hud.t / choreo.duration) * 100) + "%" }} /></div>
-              <span>{fmtTime(hud.t)} / {fmtTime(choreo.duration)}</span>
+              <div className="bar"><div style={{ width: Math.min(100, (hud.t / endT) * 100) + "%" }} /></div>
+              <span>{fmtTime(hud.t)} / {fmtTime(endT)}</span>
             </div>
           </div>
         </div>
@@ -528,6 +559,14 @@ function ChallengeScreen(props: {
           ))}
         </div>
 
+        {/* lyrics (original words; shown as text, they are NOT sung unless a vocal stem is shipped) */}
+        {lyric && (
+          <div className="lyrics" data-who={lyric.line.who}>
+            <div className="lyr-now" style={{ ["--p" as any]: Math.round(lyric.progress * 100) + "%" }}>{lyric.line.text}</div>
+            {lyric.next && <div className="lyr-next">{lyric.next.text}</div>}
+          </div>
+        )}
+
         {/* bottom-left: combo */}
         <div className="combo"><small>Combo</small><span key={hud.combo}>x{hud.combo}</span></div>
 
@@ -551,6 +590,8 @@ function ChallengeScreen(props: {
         {/* controls */}
         <div className="toolbar">
           {phase === "playing" && <button onClick={pause}>❚❚ Pause</button>}
+          {phase === "paused" && <button onClick={resume}>▶ Play</button>}
+          {(phase === "playing" || phase === "paused" || phase === "countdown") && <button onClick={start}>↻ Restart</button>}
           <button onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>⟲ Camera</button>
           <button className={props.showDebug ? "sel" : ""} onClick={props.onToggleDebug}>Debug</button>
           <button onClick={props.onSettings}>⚙</button>
@@ -563,10 +604,23 @@ function ChallengeScreen(props: {
         {phase === "ready" && (
           <div className="overlay clear">
             <div className="panel ready">
-              <h2>Ready?</h2>
+              <h2>Dance Copy</h2>
+              <div className="song-pick">
+                {songs.map((x) => (
+                  <button key={x.id} className={"sp" + (x.id === song.id ? " sel" : "")} onClick={() => setSongId(x.id)}>
+                    <b>{x.title}</b>
+                    <span>{x.blurb}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="hint">
+                {music.instrumental === "rendering" && "Preparing the music… "}
+                {music.instrumental === "error" && `Music failed to build: ${music.error}. `}
+                {song.audio === "synth" && music.instrumental === "ready" && (music.vocals ? "Music + sung vocals loaded. " : "Music ready (instrumental + synth melody — no sung vocals in this build; the lyrics are shown on screen). ")}
+              </p>
               <p>Stand where the camera sees your <b>whole body</b>. During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you.</p>
               <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing (±{settings.tolerance.toFixed(1)} s).</p>
-              <button className="btn" onClick={start}>START</button>
+              <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error"} onClick={start}>START</button>
             </div>
           </div>
         )}
@@ -578,6 +632,7 @@ function ChallengeScreen(props: {
               <h2>Paused</h2>
               <div className="btn-row">
                 <button className="btn" onClick={resume}>Resume</button>
+                <button className="btn ghost" onClick={start}>Restart</button>
                 <button className="btn ghost" onClick={props.onExit}>Quit</button>
               </div>
             </div>
@@ -586,7 +641,7 @@ function ChallengeScreen(props: {
         {phase === "done" && results && (
           <div className="overlay clear">
             <div className="panel results">
-              <h2>Routine complete</h2>
+              <h2>{song.title} complete</h2>
               <Stars n={results.stars} />
               <div className="res-top">
                 <div><small>SCORE</small><b>{results.score.toLocaleString()}</b></div>

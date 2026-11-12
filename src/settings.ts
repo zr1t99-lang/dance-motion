@@ -13,6 +13,8 @@ export interface Settings {
   /** Half-width of the timing window around each move, seconds. */
   tolerance: number;
   music: boolean;
+  /** Shifts the song relative to the dancer (ms; + = later). Compensates Bluetooth/speaker latency. */
+  audioOffsetMs: number;
   reflections: boolean;
   /** Draw the detected skeleton over the camera preview. */
   overlay: boolean;
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   responsiveness: "fast",
   tolerance: 0.7,
   music: true,
+  audioOffsetMs: 0,
   reflections: true,
   overlay: true,
   tvMode: false,

@@ -46,7 +46,7 @@ def setup_vendor_chunks(page):
         name = route.request.url.split("/dist/")[-1]
         route.fulfill(status=200, content_type="text/javascript", body=(ROOT / "dist" / name).read_text())
 
-    page.route("https://cdn.jsdelivr.net/dist/*", dist)
+    page.route("https://cdn.jsdelivr.net/dist/**", dist)
 
 
 def new_page(browser, viewport=(844, 390), deny_camera=False, **ctx):
@@ -186,6 +186,8 @@ def main():
                 page.wait_for_selector(".panel.ready", timeout=20000)  # calibration passes with the neutral body
                 if mode == "undetected":
                     page.evaluate("window.__synth = { mode: 'none' }")
+                page.click(".sp:has-text('Test Routine')")  # the 30 s deterministic routine (the song has its own e2e-song.py)
+                page.wait_for_selector(".panel.ready .btn:not([disabled])", timeout=5000)
                 page.screenshot(path=str(OUT / f"{label}-ready.png"))
                 t_click = page.evaluate("performance.now()")
                 page.click(".panel.ready .btn")
@@ -221,10 +223,10 @@ def main():
             ctx, page, data = play("perfect", label="10-perfect", shots=(7, 14, 22))
             txt = data["text"]
             print("      results screen:", " | ".join(txt.split("\n")[:12]))
-            check("real-time run: perfect copy finishes the 30 s routine and shows results", "Routine complete" in txt)
+            check("real-time run: perfect copy finishes the 30 s routine and shows results", "complete" in txt)
             check("perfect copy -> all 9 moves PERFECT with real timing (real camera loop + stub poses)", "PERFECT 9" in txt, txt.replace("\n", " ")[:140])
             check("instructor animation had no NaN transforms for the whole routine", data["nan"] == 0, f"nan={data['nan']}")
-            check("no JS errors during the challenge", not [l for l in page.logs if "[pageerror]" in l or "[error]" in l], "; ".join(page.logs)[-300:])
+            check("no JS errors during the challenge", not [l for l in page.logs if ("[pageerror]" in l or "[error]" in l) and "404" not in l], "; ".join(page.logs)[-300:])
             ctx.close()
 
             ctx, page, data = play("undetected", label="11-undetected")

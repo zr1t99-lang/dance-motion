@@ -6,6 +6,7 @@ export const DEFAULT_SETTINGS = {
     responsiveness: "fast",
     tolerance: 0.7,
     music: true,
+    audioOffsetMs: 0,
     reflections: true,
     overlay: true,
     tvMode: false,

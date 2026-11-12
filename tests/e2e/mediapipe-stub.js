@@ -2,8 +2,11 @@
 // poses scripted by the test page (window.__synth). It exists only so the real Engine loop, UI flow
 // and scorer can be exercised offline. The shipped game never contains this file.
 import { buildRefPose, NEUTRAL, Choreography } from "/dist/choreography.js";
+import { buildSunshineShake } from "/dist/songs/sunshineShake.js";
 
 const choreo = new Choreography();
+const songDef = buildSunshineShake();
+const songChoreo = new Choreography(songDef.moves, songDef.choreo);
 const empty = () => Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }));
 
 function toCamera(ref, scale = 0.17, cx = 0.5, cy = 0.45, aspect = 4 / 3) {
@@ -31,7 +34,7 @@ export const PoseLandmarker = {
         if (s.mode === "neutral") spec = NEUTRAL;
         else {
           const t = (now - s.t0) / 1000 - (s.lag || 0); // follow the instructor with a small lag
-          spec = choreo.specAt(Math.max(0, t));
+          spec = (s.song ? songChoreo : choreo).specAt(Math.max(0, t));
         }
         const ref = buildRefPose(spec);
         const noise = s.noise || 0;

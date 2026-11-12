@@ -135,7 +135,7 @@ export function refComparable(spec: PoseSpec): Comparable {
   return toComparable(f, REF_BASELINE);
 }
 
-function mk(
+export function mk(
   id: string,
   name: string,
   at: number,
@@ -197,16 +197,33 @@ function lerpSpec(a: PoseSpec, b: PoseSpec, u: number): PoseSpec {
 }
 const smooth = (u: number) => u * u * (3 - 2 * u);
 
+export interface ChoreoOptions {
+  /** Time (s) the dancer spends moving into each pose (capped to 85% of the gap between keyframes). */
+  transition?: number;
+  /** Seconds of countdown before t = 0. */
+  leadIn?: number;
+  /** Seconds per beat. Enables the beat-locked body bounce and hip sway (zero exactly on every beat). */
+  beatSec?: number;
+  /** Knee-bend amount added at the middle of every beat (0..1). */
+  bounce?: number;
+  /** Sideways hip sway (torso lengths) alternating every beat. */
+  sway?: number;
+}
+
 export class Choreography {
   readonly moves: Move[];
   readonly duration: number;
   /** Seconds of neutral-stance countdown before t = 0 (used to calibrate the baseline). */
-  readonly leadIn = 3;
+  readonly leadIn: number;
   private keys: { at: number; spec: PoseSpec }[];
 
-  constructor(moves: Move[] = MOVES) {
+  constructor(
+    moves: Move[] = MOVES,
+    private opts: ChoreoOptions = {},
+  ) {
     this.moves = moves;
     this.duration = moves[moves.length - 1].at;
+    this.leadIn = opts.leadIn ?? 3;
     this.keys = [{ at: 0, spec: NEUTRAL }, ...moves.map((m) => ({ at: m.at, spec: m.spec }))];
   }
 
@@ -214,17 +231,31 @@ export class Choreography {
     return this.moves.filter((m) => m.scored);
   }
 
-  /** Deterministic pose spec at time t (seconds). */
+  /** Deterministic pose spec at time t (seconds). Keyframes are always hit exactly at their time. */
   specAt(t: number): PoseSpec {
+    const base = this.baseSpecAt(t);
+    const { beatSec, bounce, sway } = this.opts;
+    if (!beatSec || t <= 0 || (!bounce && !sway)) return base;
+    const x = t / beatSec;
+    const ph = x - Math.floor(x);
+    // both terms are exactly 0 at every beat boundary, so scored poses are never altered
+    const b = bounce ? bounce * (1 - Math.cos(2 * Math.PI * ph)) * 0.5 : 0;
+    const s = sway ? sway * Math.sin(Math.PI * x) : 0;
+    return { ...base, bend: Math.min(1, base.bend + b), hipShift: base.hipShift + s };
+  }
+
+  private baseSpecAt(t: number): PoseSpec {
     const k = this.keys;
     if (t <= 0) return k[0].spec;
+    const tr = this.opts.transition ?? TRANSITION;
     for (let i = 1; i < k.length; i++) {
       if (t <= k[i].at) {
         const prev = k[i - 1];
         const next = k[i];
-        const start = Math.max(prev.at, next.at - TRANSITION);
+        const dur = Math.min(tr, 0.85 * (next.at - prev.at));
+        const start = next.at - dur;
         if (t <= start) return prev.spec;
-        return lerpSpec(prev.spec, next.spec, smooth((t - start) / (next.at - start)));
+        return lerpSpec(prev.spec, next.spec, smooth((t - start) / dur));
       }
     }
     return k[k.length - 1].spec;

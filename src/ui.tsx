@@ -277,7 +277,15 @@ export function SettingsPanel(props: {
             </div>
           </div>
           <div className="row">
-            <label>Backing beat</label>
+            <label>Audio offset</label>
+            <div className="stepper">
+              <button onClick={() => set({ audioOffsetMs: Math.max(-300, s.audioOffsetMs - 20) })}>−</button>
+              <span>{s.audioOffsetMs > 0 ? "+" : ""}{s.audioOffsetMs} ms</span>
+              <button onClick={() => set({ audioOffsetMs: Math.min(300, s.audioOffsetMs + 20) })}>+</button>
+            </div>
+          </div>
+          <div className="row">
+            <label>Music</label>
             <Seg value={s.music} options={[{ v: true, label: "On" }, { v: false, label: "Off" }]} onChange={(v) => set({ music: v })} />
           </div>
           <div className="row">

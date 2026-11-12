@@ -79,7 +79,7 @@ export function refComparable(spec) {
     const f = computeFeatures(buildRefPose(spec), 1);
     return toComparable(f, REF_BASELINE);
 }
-function mk(id, name, at, over, weights = {}, scored = true) {
+export function mk(id, name, at, over, weights = {}, scored = true) {
     return { id, name, at, spec: { ...NEUTRAL, ...over }, weights: { ...W_DEFAULT, ...weights }, scored };
 }
 const RELAXED = { rUpper: 30, rFore: 18, lUpper: 30, lFore: 18 };
@@ -107,32 +107,49 @@ function lerpSpec(a, b, u) {
 }
 const smooth = (u) => u * u * (3 - 2 * u);
 export class Choreography {
+    opts;
     moves;
     duration;
     /** Seconds of neutral-stance countdown before t = 0 (used to calibrate the baseline). */
-    leadIn = 3;
+    leadIn;
     keys;
-    constructor(moves = MOVES) {
+    constructor(moves = MOVES, opts = {}) {
+        this.opts = opts;
         this.moves = moves;
         this.duration = moves[moves.length - 1].at;
+        this.leadIn = opts.leadIn ?? 3;
         this.keys = [{ at: 0, spec: NEUTRAL }, ...moves.map((m) => ({ at: m.at, spec: m.spec }))];
     }
     get scoredMoves() {
         return this.moves.filter((m) => m.scored);
     }
-    /** Deterministic pose spec at time t (seconds). */
+    /** Deterministic pose spec at time t (seconds). Keyframes are always hit exactly at their time. */
     specAt(t) {
+        const base = this.baseSpecAt(t);
+        const { beatSec, bounce, sway } = this.opts;
+        if (!beatSec || t <= 0 || (!bounce && !sway))
+            return base;
+        const x = t / beatSec;
+        const ph = x - Math.floor(x);
+        // both terms are exactly 0 at every beat boundary, so scored poses are never altered
+        const b = bounce ? bounce * (1 - Math.cos(2 * Math.PI * ph)) * 0.5 : 0;
+        const s = sway ? sway * Math.sin(Math.PI * x) : 0;
+        return { ...base, bend: Math.min(1, base.bend + b), hipShift: base.hipShift + s };
+    }
+    baseSpecAt(t) {
         const k = this.keys;
         if (t <= 0)
             return k[0].spec;
+        const tr = this.opts.transition ?? TRANSITION;
         for (let i = 1; i < k.length; i++) {
             if (t <= k[i].at) {
                 const prev = k[i - 1];
                 const next = k[i];
-                const start = Math.max(prev.at, next.at - TRANSITION);
+                const dur = Math.min(tr, 0.85 * (next.at - prev.at));
+                const start = next.at - dur;
                 if (t <= start)
                     return prev.spec;
-                return lerpSpec(prev.spec, next.spec, smooth((t - start) / (next.at - start)));
+                return lerpSpec(prev.spec, next.spec, smooth((t - start) / dur));
             }
         }
         return k[k.length - 1].spec;

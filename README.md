@@ -68,8 +68,9 @@ Toolbar: switch camera, mirror view, debug panel, settings, exit. Settings: fron
 ## Tests
 
 ```bash
-npm test                      # compiles, then 18 deterministic scoring/choreography/smoothing tests
+npm test                      # compiles, then scoring/choreography/smoothing tests + 17 song tests
 python3 tests/e2e/e2e.py      # headless Chrome integration test (needs playwright + Chrome)
+python3 tests/e2e/e2e-song.py # full real-time 112 s Sunshine Shake run + pause/restart (~3 min)
 ```
 The e2e test boots the real `index.html` + `dist/`, uses Chrome's fake *camera device*, and stubs only **three.js** (recording stub) and **MediaPipe** (scripted poses). It verifies flow, error handling, tracking-lost behaviour, real-time scoring and cleanup. It does **not** judge 3D visuals or real pose-estimation quality.
 
@@ -90,7 +91,11 @@ The e2e test boots the real `index.html` + `dist/`, uses Chrome's fake *camera d
 | Avatar axis conventions from MediaPipe *world* landmarks (y is auto-oriented from the data; z sign assumed) | **Unverified**: if depth looks inverted on device, flip the sign in `Avatar.setFromWorld` |
 | Rear-camera tracking quality | **Depends on the device/browser**; compare with the debug panel's Front/Back buttons |
 | Smoothing (One-Euro: minCutoff 1.2, beta 4/3) | **Unit-tested on synthetic jitter; tune on device** |
-| Backing beat (original synthesised 120 BPM, WebAudio) | **Implemented**; sync with the on-screen beat is approximate |
+| **Dance Copy: original song "Sunshine Shake"** (128 BPM, 1:49, intro/verses/pre-chorus/chorus/bridge/final chorus/outro), 112 scored moves, 8-count choreography with chorus signature moves, on-screen lyrics, Play/Pause/Restart, song picker, audio-offset setting | **Working** (17 node tests + 18 browser checks, incl. a full real-time run with a scripted dancer: 112/112 PERFECT, audio clock within 5 ms of the dance clock) |
+| Instrumental music (generated in code, `src/synth.ts`, rendered in a Web Worker, exportable with `node tools/export-wav.mjs`) | **Working technically**; **how it sounds has not been judged by ear** in my environment |
+| **Sung vocals** | **NOT generated** (no singing model available). Lyrics are shown as text; the melody is a synth lead. A real vocal stem can be dropped in (`songs/sunshine-shake-vocals.mp3`), see `SONG_BRIEF.md` |
+| Shoulder bounce / hip sway in the choreography | Animated on the 3D dancer, **not scored** (2D camera can't judge them reliably) |
+| Backing click beat (120 BPM) for the 30 s test routine | **Implemented** |
 | TV Mode: TV layout, fullscreen, screen wake-lock, mirroring instructions | **Partial by design**: the phone stays the camera/tracker; you mirror its screen with AirPlay / Cast / HDMI. **No automatic TV connection is claimed or implemented.** |
 | Fullscreen / landscape lock | Works where supported (Android Chrome); not on iPhone Safari |
 
