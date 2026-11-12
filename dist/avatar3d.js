@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { LM, POSE_LANDMARK_COUNT } from "./types.js";
 import { GROUND_Y, METERS_PER_UNIT } from "./choreography.js";
+import { Locomotion, Retargeter } from "./retarget.js";
 export const INSTRUCTOR_STYLE = {
     jacket: 0xff2fb4, pants: 0x2b1b92, skin: 0xf6cfe0, shoes: 0xffffff, glove: 0xf4ff4a, hair: 0x1d1047, rim: 0xff7bf2, shades: true,
 };
@@ -84,6 +85,12 @@ class Body {
     sh = new THREE.Vector3();
     hip = new THREE.Vector3();
     head = new THREE.Vector3();
+    hup = new THREE.Vector3();
+    fwd = new THREE.Vector3();
+    hx = new THREE.Vector3();
+    fx = new THREE.Vector3();
+    fy = new THREE.Vector3();
+    fz = new THREE.Vector3();
     constructor(style, reflect, geos) {
         this.style = style;
         this.reflect = reflect;
@@ -120,7 +127,7 @@ class Body {
             this.parts.pony.rim.visible = s.shades;
     }
     /** J: 33 scene-space joint positions (metres, y up, +z toward the viewer). */
-    layout(J) {
+    layout(J, fe) {
         const p = this.parts;
         const { ex, ey, ez, tmp, tmp2, sh, hip, head } = this;
         sh.copy(J[LM.L_SHOULDER]).add(J[LM.R_SHOULDER]).multiplyScalar(0.5);
@@ -138,30 +145,23 @@ class Body {
         p.torso.box(tmp, ex, ey, ez, shW * 1.18 + 0.04, torsoLen * 0.78, 0.2);
         tmp.copy(hip).addScaledVector(ey, 0.03);
         p.pelvis.box(tmp, ex, ey, ez, hipW * 1.5 + 0.04, 0.2, 0.21);
-        // head & neck
+        // head & neck (the head turns with the player's nose direction)
         head.copy(J[LM.L_EAR]).add(J[LM.R_EAR]).multiplyScalar(0.5);
         head.y += 0.02;
         tmp.copy(sh).addScaledVector(ey, 0.02);
         p.neck.bone(tmp, head, 0.04);
         p.head.ball(head, 0.105);
-        tmp.copy(head);
-        tmp.y += 0.035;
-        tmp.z -= 0.012;
+        const hup = this.hup.subVectors(head, sh).normalize();
+        const fwd = this.fwd.set(fe.face.x, fe.face.y, fe.face.z);
+        fwd.addScaledVector(hup, -fwd.dot(hup)).normalize();
+        const hx = this.hx.crossVectors(hup, fwd);
+        tmp.copy(head).addScaledVector(hup, 0.035).addScaledVector(fwd, -0.012);
         p.hair.ball(tmp, 0.112);
-        tmp.copy(head);
-        tmp.z -= 0.13;
-        tmp.y -= 0.01;
-        tmp2.copy(head);
-        tmp2.z -= 0.2;
-        tmp2.y -= 0.17;
+        tmp.copy(head).addScaledVector(fwd, -0.13).addScaledVector(hup, -0.01);
+        tmp2.copy(head).addScaledVector(fwd, -0.2).addScaledVector(hup, -0.17);
         p.pony.bone(tmp, tmp2, 0.032);
-        tmp.copy(head);
-        tmp.z += 0.098;
-        tmp.y += 0.012;
-        _a.set(1, 0, 0);
-        _b.set(0, 1, 0);
-        const _c = this.tmp2.set(0, 0, 1);
-        p.shades.box(tmp, _a, _b, _c, 0.19, 0.04, 0.03);
+        tmp.copy(head).addScaledVector(fwd, 0.098).addScaledVector(hup, 0.012);
+        p.shades.box(tmp, hx, hup, fwd, 0.19, 0.04, 0.03);
         // limbs
         const sides = [
             ["L", LM.L_SHOULDER, LM.L_ELBOW, LM.L_WRIST, LM.L_HIP, LM.L_KNEE, LM.L_ANKLE, 0, 0],
@@ -178,13 +178,15 @@ class Body {
             p[`shin${sd}`].bone(J[iK], J[iA], 0.064);
             p[`knee${sd}`].ball(J[iK], 0.07);
             p[`hipj${sd}`].ball(J[iH], 0.085);
+            // shoe follows the player's heel -> toe direction
+            const fd = sd === "L" ? fe.footL : fe.footR;
+            const fz = this.fz.set(fd.x, fd.y, fd.z).normalize();
+            const fy = this.fy.set(0, 1, 0).addScaledVector(fz, -fz.y).normalize();
+            const fx = this.fx.crossVectors(fy, fz);
             tmp.copy(J[iA]);
             tmp.y -= 0.035;
-            tmp.z += 0.06;
-            _a.set(1, 0, 0);
-            _b.set(0, 1, 0);
-            _m.identity();
-            p[`shoe${sd}`].box(tmp, _a, _b, this.tmp2.set(0, 0, 1), 0.1, 0.075, 0.24);
+            tmp.addScaledVector(fz, 0.06);
+            p[`shoe${sd}`].box(tmp, fx, fy, fz, 0.1, 0.075, 0.24);
         }
     }
 }
@@ -198,8 +200,15 @@ export class Avatar {
     geos;
     floorOffset = 0;
     lateral = 0;
+    lift = 0;
+    liftTarget = 0;
     seen = new Array(POSE_LANDMARK_COUNT).fill(false);
     yDown = true;
+    retarget = new Retargeter();
+    loco = new Locomotion();
+    /** Retargeted (fixed bone length) skeleton that is actually drawn for the player. */
+    rt = Array.from({ length: POSE_LANDMARK_COUNT }, () => new THREE.Vector3());
+    still = { face: { x: 0, y: 0, z: 1 }, footL: { x: 0, y: 0, z: 1 }, footR: { x: 0, y: 0, z: 1 } };
     constructor(style, reflection) {
         this.geos = {
             cyl: new THREE.CylinderGeometry(1, 1, 1, 14, 1),
@@ -236,9 +245,9 @@ export class Avatar {
     /**
      * Player: drive from MediaPipe world landmarks (metres, hip-centred, y down, z away from camera).
      * Joints whose visibility is too low keep their last value, so invalid data never moves the avatar.
-     * `hipImageX` (0..1) lets the avatar travel sideways when the player steps.
+     * `img` (the image-space landmarks) lets the avatar travel sideways and jump with the player.
      */
-    setFromWorld(world, mirror, hipImageX) {
+    setFromWorld(world, mirror, img) {
         const sx = mirror ? -1 : 1;
         // Self-orient the vertical axis from the data itself: a standing body has its ankles below
         // its shoulders. (MediaPipe's world y points down; this guards against assuming wrongly.)
@@ -255,8 +264,11 @@ export class Avatar {
             this.target[i].set(sx * l.x, sy * l.y, -l.z);
             this.seen[i] = true;
         }
-        if (hipImageX !== null)
-            this.lateral = Math.max(-1.6, Math.min(1.6, (hipImageX - 0.5) * 2.4 * sx));
+        if (img) {
+            const l = this.loco.update(img.pose, img.aspect, img.t);
+            this.lateral = Math.max(-1.8, Math.min(1.8, l.x * sx));
+            this.liftTarget = l.lift;
+        }
     }
     /** Per-render-frame step: eases toward the latest tracked joints (hides the 30 Hz inference cadence). */
     step(dt) {
@@ -293,19 +305,26 @@ export class Avatar {
             }
         }
         if (!instructor) {
-            // keep the feet on the floor: lowest ankle sits at y = 0 (squats lower the whole body)
-            const low = Math.min(this.joints[LM.L_ANKLE].y, this.joints[LM.R_ANKLE].y) - 0.02;
-            const kk = 1 - Math.exp(-Math.max(dt, 0.001) * 12);
-            this.floorOffset += (-low - this.floorOffset) * kk;
-            this.group.position.y = this.floorOffset;
+            // Fixed-bone-length copy of the player's pose: angles are the player's, proportions are the rig's.
+            this.retarget.solve(this.joints, this.rt, this.seen);
+            // standing feet sit on the floor (squats lower the whole body); jumps add real height on top
+            const low = Math.min(this.rt[LM.L_ANKLE].y, this.rt[LM.R_ANKLE].y) - 0.02;
+            const d = Math.max(dt, 0.001);
+            this.floorOffset += (-low - this.floorOffset) * (1 - Math.exp(-d * 14));
+            this.lift += (this.liftTarget - this.lift) * (1 - Math.exp(-d * 28));
+            const y = this.floorOffset + this.lift;
+            this.group.position.y = y;
             this.group.position.x = this.lateral;
             if (this.reflGroup) {
-                this.reflGroup.position.y = -this.floorOffset;
+                this.reflGroup.position.y = -y;
                 this.reflGroup.position.x = this.lateral;
             }
+            this.body.layout(this.rt, this.retarget);
+            this.reflBody?.layout(this.rt, this.retarget);
+            return;
         }
-        this.body.layout(this.joints);
-        this.reflBody?.layout(this.joints);
+        this.body.layout(this.joints, this.still);
+        this.reflBody?.layout(this.joints, this.still);
     }
     dispose() {
         for (const g of Object.values(this.geos))

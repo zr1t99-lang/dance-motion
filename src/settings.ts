@@ -8,6 +8,8 @@ export interface Settings {
   model: ModelVariant;
   /** Max pose inferences per second (lower = cooler phone, longer battery). */
   maxFps: number;
+  /** How closely the avatar follows quick movements (Fast = least lag). */
+  responsiveness: "smooth" | "balanced" | "fast";
   /** Half-width of the timing window around each move, seconds. */
   tolerance: number;
   music: boolean;
@@ -21,7 +23,8 @@ export const DEFAULT_SETTINGS: Settings = {
   facing: "user",
   mirror: true,
   model: "lite",
-  maxFps: 30,
+  maxFps: 60,
+  responsiveness: "fast",
   tolerance: 0.7,
   music: true,
   reflections: true,

@@ -10,7 +10,6 @@ import { Choreography, buildRefPose, refComparable } from "./choreography.js";
 import { BODY_GROUPS, computeFeatures, groupInFrame } from "./poseMath.js";
 import { ChallengeScorer, DEFAULT_SCORING } from "./scoring.js";
 import { loadSettings, saveSettings } from "./settings.js";
-import { LM } from "./types.js";
 import { DebugPanel, PreviewBox, SettingsPanel, Stars, StickFigure, Toast, TVPanel, useStageBox } from "./ui.js";
 function toAppError(e) {
     if (e instanceof CameraError) {
@@ -131,8 +130,7 @@ function MirrorScreen(props) {
         if (!lost && f && f.valid && f.world && f.seq !== lastSeq.current) {
             lastSeq.current = f.seq;
             hadPose.current = true;
-            const hipX = f.pose ? (f.pose[LM.L_HIP].x + f.pose[LM.R_HIP].x) / 2 : null;
-            stage.avatar.setFromWorld(f.world, setRef.current.mirror, hipX);
+            stage.avatar.setFromWorld(f.world, setRef.current.mirror, f.pose ? { pose: f.pose, aspect: f.aspect, t: f.t / 1000 } : null);
         }
         stage.avatar.step(dt);
         if (now - lastInfo.current > 120) {
@@ -338,9 +336,11 @@ export function App() {
         setSettingsState(s);
         saveSettings(s);
         engine.maxFps = s.maxFps;
+        engine.setResponsiveness(s.responsiveness);
     };
     useEffect(() => {
         engine.maxFps = settings.maxFps;
+        engine.setResponsiveness(settings.responsiveness);
         return () => engine.dispose();
     }, []);
     const flash = (m) => {

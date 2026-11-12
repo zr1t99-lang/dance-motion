@@ -226,4 +226,104 @@ test("one-euro filter reduces jitter on a static pose but follows fast motion", 
   assert.ok(out[16].x - a[16].x > 0.25, "filter lag too high: " + (out[16].x - a[16].x));
 });
 
+console.log("Free-movement retargeting");
+import { Retargeter, Locomotion, RIG } from "../dist/retarget.js";
+{
+  const V = () => Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
+  const seenAll = new Array(33).fill(true);
+  // A "tracked" skeleton with deliberately WRONG limb lengths (like noisy depth) and an arbitrary dance pose.
+  function tracked(scale, r) {
+    const J = V();
+    const set = (i, x, y, z) => (J[i] = { x, y, z });
+    set(23, 0.1, 0, 0); set(24, -0.1, 0, 0);
+    set(11, 0.2, 0.5, 0.05); set(12, -0.2, 0.5, -0.05);
+    set(13, 0.5 * scale, 0.7, 0.2); set(15, 0.9 * scale, 0.9, 0.5);       // left arm up-and-out, long
+    set(14, -0.3, 0.3, 0.1); set(16, -0.35, 0.05, 0.3);                    // right arm down-forward
+    set(25, 0.12, -0.45, 0.1); set(27, 0.13, -0.9, 0.0);
+    set(26, -0.2, -0.4, 0.3); set(28, -0.25, -0.8, 0.5);                   // right leg kicked forward
+    set(7, 0.07, 0.72, 0.0); set(8, -0.07, 0.72, 0.0); set(0, 0.0, 0.72, 0.12);
+    set(29, 0.13, -0.95, -0.05); set(31, 0.13, -0.96, 0.15); set(30, -0.25, -0.85, 0.45); set(32, -0.25, -0.86, 0.65);
+    return J;
+  }
+  const len = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  const unit = (a, b) => { const l = len(a, b) || 1; return [(b.x - a.x) / l, (b.y - a.y) / l, (b.z - a.z) / l]; };
+
+  test("retargeted bones always have the rig's fixed lengths (no stretching)", () => {
+    for (const k of [0.6, 1, 1.7]) {
+      const J = tracked(k), out = V(), rt = new Retargeter();
+      rt.solve(J, out, seenAll);
+      for (const [a, b, L] of [[11, 13, RIG.upper], [13, 15, RIG.fore], [12, 14, RIG.upper], [14, 16, RIG.fore], [23, 25, RIG.thigh], [25, 27, RIG.shin], [24, 26, RIG.thigh], [26, 28, RIG.shin]])
+        assert.ok(Math.abs(len(out[a], out[b]) - L) < 1e-9, `bone ${a}-${b}: ${len(out[a], out[b])}`);
+    }
+  });
+  test("bone DIRECTIONS (the dance movement) are copied exactly from the player", () => {
+    const J = tracked(1), out = V();
+    new Retargeter().solve(J, out, seenAll);
+    for (const [a, b] of [[13, 15], [14, 16], [25, 27], [26, 28]]) {
+      const d0 = unit(J[a], J[b]), d1 = unit(out[a], out[b]);
+      assert.ok(Math.abs(d0[0] - d1[0]) + Math.abs(d0[1] - d1[1]) + Math.abs(d0[2] - d1[2]) < 1e-9, `dir ${a}-${b}`);
+    }
+  });
+  test("a limb pointing the other way produces the opposite direction (left/right/up/down not confused)", () => {
+    const J = tracked(1), J2 = tracked(1);
+    J2[15] = { x: J[13].x + 0.3, y: J[13].y - 0.5, z: J[13].z };            // forearm now points DOWN instead of up
+    const a = V(), b = V();
+    new Retargeter().solve(J, a, seenAll); new Retargeter().solve(J2, b, seenAll);
+    assert.ok(a[15].y > a[13].y && b[15].y < b[13].y);
+  });
+  test("degenerate input (all joints identical / missing feet / unseen face) never produces NaN", () => {
+    const J = V(), out = V(), rt = new Retargeter();
+    rt.solve(J, out, new Array(33).fill(false));
+    for (const p of out) assert.ok(Number.isFinite(p.x + p.y + p.z));
+    for (const f of [rt.face, rt.footL, rt.footR]) assert.ok(Number.isFinite(f.x + f.y + f.z) && Math.abs(Math.hypot(f.x, f.y, f.z) - 1) < 1e-6);
+  });
+  test("head turns with the nose; feet follow heel->toe", () => {
+    const J = tracked(1), out = V(), rt = new Retargeter();
+    J[0] = { x: 0.11, y: 0.72, z: 0.02 };                                   // nose far to the player's left => head yawed
+    for (let i = 0; i < 12; i++) rt.solve(J, out, seenAll);
+    assert.ok(rt.face.x > 0.8, "face.x " + rt.face.x);
+    assert.ok(rt.footR.z > 0.9 && rt.footL.z > 0.9);
+    J[31] = { x: 0.6, y: J[29].y, z: J[29].z };                             // left toe pointing sideways
+    for (let i = 0; i < 12; i++) rt.solve(J, out, seenAll);
+    assert.ok(rt.footL.x > 0.9, "footL.x " + rt.footL.x);
+  });
+
+  const img = (ankleY, hipX = 0.5) => {
+    const p = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility: 1 }));
+    p[11] = { x: hipX + 0.03, y: 0.3, visibility: 1 }; p[12] = { x: hipX - 0.03, y: 0.3, visibility: 1 };
+    p[23] = { x: hipX + 0.02, y: 0.5, visibility: 1 }; p[24] = { x: hipX - 0.02, y: 0.5, visibility: 1 };
+    p[27] = { x: hipX + 0.02, y: ankleY, visibility: 1 }; p[28] = { x: hipX - 0.02, y: ankleY, visibility: 1 };
+    return p;
+  };
+  test("standing still -> no lift; jumping -> avatar rises; landing -> back to 0", () => {
+    const lo = new Locomotion();
+    let t = 0, last;
+    for (; t < 2; t += 1 / 30) last = lo.update(img(0.9), 4 / 3, t);
+    assert.ok(last.lift < 0.01, "still " + last.lift);
+    let peak = 0;
+    for (let k = 0; k < 10; k++, t += 1 / 30) peak = Math.max(peak, lo.update(img(0.9 - 0.08 * Math.sin((k / 9) * Math.PI)), 4 / 3, t).lift);
+    assert.ok(peak > 0.15, "peak " + peak);
+    for (let k = 0; k < 6; k++, t += 1 / 30) last = lo.update(img(0.9), 4 / 3, t);
+    assert.ok(last.lift < 0.03, "landed " + last.lift);
+  });
+  test("stepping on one foot (other foot raised) is NOT a jump", () => {
+    const lo = new Locomotion();
+    let t = 0;
+    for (; t < 1.5; t += 1 / 30) lo.update(img(0.9), 4 / 3, t);
+    const p = img(0.9); p[27].y = 0.8; // one ankle lifted
+    assert.ok(lo.update(p, 4 / 3, t).lift < 0.01);
+  });
+  test("walking away from the camera slowly (feet drift up the image) is not a jump", () => {
+    const lo = new Locomotion();
+    let t = 0, worst = 0;
+    for (let k = 0; k < 120; k++, t += 1 / 30) worst = Math.max(worst, lo.update(img(0.9 - k * 0.0008), 4 / 3, t).lift);
+    assert.ok(worst < 0.08, "worst " + worst);
+  });
+  test("sideways travel scales with the body and is signed", () => {
+    const lo = new Locomotion();
+    const a = lo.update(img(0.9, 0.7), 4 / 3, 0).x, b = lo.update(img(0.9, 0.3), 4 / 3, 0.03).x;
+    assert.ok(a > 0.5 && b < -0.5, `${a} ${b}`);
+  });
+}
+
 console.log(`\n${pass} tests passed`);

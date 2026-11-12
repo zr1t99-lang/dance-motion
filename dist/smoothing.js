@@ -53,6 +53,11 @@ export class PoseSmoother {
         this.params = params;
         this.reset();
     }
+    /** Change smoothing strength on the fly (restarts the filters). */
+    setParams(p) {
+        this.params = p;
+        this.reset();
+    }
     reset() {
         this.f = Array.from({ length: POSE_LANDMARK_COUNT * 3 }, () => new OneEuro(this.params.minCutoff, this.params.beta));
     }

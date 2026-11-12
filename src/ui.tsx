@@ -292,8 +292,16 @@ export function SettingsPanel(props: {
             <label>Pose model</label>
             <Seg
               value={s.model}
-              options={[{ v: "lite" as const, label: "Lite (fast)" }, { v: "full" as const, label: "Full (accurate)" }]}
+              options={[{ v: "lite" as const, label: "Lite" }, { v: "full" as const, label: "Full" }, { v: "heavy" as const, label: "Heavy (best)" }]}
               onChange={(v) => set({ model: v })}
+            />
+          </div>
+          <div className="row">
+            <label>Movement response</label>
+            <Seg
+              value={s.responsiveness}
+              options={[{ v: "smooth" as const, label: "Smooth" }, { v: "balanced" as const, label: "Balanced" }, { v: "fast" as const, label: "Fast" }]}
+              onChange={(v) => set({ responsiveness: v })}
             />
           </div>
           <div className="row">
@@ -301,7 +309,7 @@ export function SettingsPanel(props: {
             <Seg value={s.reflections} options={[{ v: true, label: "On" }, { v: false, label: "Off" }]} onChange={(v) => set({ reflections: v })} />
           </div>
         </div>
-        <p className="hint">Model and reflection changes apply the next time you start a mode. Lowering the inference cap or turning reflections off helps older phones.</p>
+        <p className="hint">Model changes apply the next time you start a mode (Heavy = most accurate, needs a fast phone; if it lags, use Full or Lite). Lowering the inference cap or turning reflections off helps older phones.</p>
       </div>
     </div>
   );

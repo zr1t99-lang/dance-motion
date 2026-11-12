@@ -48,6 +48,12 @@ export const LOST_AFTER_MS = 350;
 
 type Listener = (f: FrameData) => void;
 
+const RESPONSE = {
+  smooth: { minCutoff: 1.2, beta: 4 },
+  balanced: { minCutoff: 2.0, beta: 9 },
+  fast: { minCutoff: 3.5, beta: 20 },
+};
+
 /**
  * Owns camera + MediaPipe model + the inference loop. Everything here is real: if the camera or
  * model cannot start, start() rejects and nothing is simulated.
@@ -59,8 +65,8 @@ export class Engine {
   lastValidAt = 0;
   maxFps = 30;
   private cam: OpenedCamera | null = null;
-  private smoother = new PoseSmoother({ minCutoff: 1.2, beta: 4 });
-  private smootherW = new PoseSmoother({ minCutoff: 1.2, beta: 3 });
+  private smoother = new PoseSmoother(RESPONSE.balanced);
+  private smootherW = new PoseSmoother(RESPONSE.balanced);
   private listeners = new Set<Listener>();
   private running = false;
   private vfcHandle = 0;
@@ -91,6 +97,13 @@ export class Engine {
       cameraFps: null, poseFps: 0, inferMs: null, latencyMs: null, videoW: 0, videoH: 0,
       facingRequested: "user", facingActual: undefined, cameraLabel: "", delegate: null, model: null, running: false,
     };
+  }
+
+  /** Smooth = steadier but laggier; Fast = follows quick dance moves with minimal lag (a bit more jitter). */
+  setResponsiveness(r: "smooth" | "balanced" | "fast") {
+    const p = RESPONSE[r];
+    this.smoother.setParams(p);
+    this.smootherW.setParams(p);
   }
 
   subscribe(fn: Listener): () => void {

@@ -41,6 +41,11 @@ Then: landscape, phone propped 2-3 m away at about waist height, whole body (fee
 
 > **Claude preview limitation:** inside the Claude chat preview the page is sandboxed and its camera permission and CDN access are not guaranteed, so use one of the routes above.
 
+## Motion Mirror: free dance (Kinect-Adventures style)
+
+The avatar copies the **direction of every bone** (arms, forearms, thighs, shins, torso lean/twist, head turn, feet) from the camera, on a rig with fixed proportions, so limbs never stretch. It also follows **sideways steps** and **jumps**. For the closest copy: Settings -> *Pose model: Heavy (best)* (or Full) and *Movement response: Fast* (default). If the phone lags, use Full/Lite or lower the inference cap.
+Limits: one camera sees in 2D, so depth (an arm pointing at the camera), spinning fully around, and fingers are approximate or not tracked.
+
 ## Controls / flow
 
 Menu → tap a mode (camera + model start only now) → **Calibration** ("Stand back until your entire body is visible.", every body group must be confidently detected *inside the frame* for ~1.2 s) → mode.
