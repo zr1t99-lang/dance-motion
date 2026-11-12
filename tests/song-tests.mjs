@@ -20,6 +20,7 @@ test("128 BPM, 29 eight-counts = 232 beats = 108.75 s (inside 90-120 s)", () => 
   assert.equal(song.totalBeats, 232);
   assert.ok(Math.abs(song.totalBeats * song.beatSec - 108.75) < 1e-9);
   assert.equal(DANCE.length, 29);
+  assert.equal(DANCE.join(" ").split(" ").length, 58); // 58 moves of 4 beats
   assert.deepEqual(song.sections.map((s) => s.name), ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Pre-Chorus", "Chorus", "Bridge", "Final Chorus", "Outro"]);
   const last = song.sections.at(-1);
   assert.equal(last.startBeat + last.beats, 232);
@@ -35,28 +36,28 @@ test("lyrics: inside the song, ordered, no overlap, chorus repeats verbatim", ()
 console.log("Choreography");
 const moves = song.moves;
 const scored = moves.filter((m) => m.scored);
-test("112 scored accents on odd beats; the dancer has a pose on every beat (groove in between)", () => {
-  assert.equal(scored.length, 112);
-  assert.ok(moves.filter((m) => !m.scored).length > 100); // watch bar + groove beats + finish
+test("56 scored moves, one every 4 beats (1.9 s), each held through the next count; first 8-count is a watch bar", () => {
+  assert.equal(scored.length, 56);
+  assert.ok(moves.filter((m) => !m.scored).length >= 58); // hold keyframes + watch bar + finish
   for (const m of scored) {
     const beat = m.at / BEAT;
     assert.ok(Math.abs(beat - Math.round(beat)) < 1e-9 && Math.round(beat) % 2 === 1, `${m.id} at beat ${beat}`);
   }
 });
-test("moves ~0.94 s apart; scorer windows never overlap", () => {
+test("scored moves 1.875 s apart; scorer windows never overlap", () => {
   const c = new Choreography(moves, song.choreo);
   const sc = new ChallengeScorer(c, song.scoring);
-  for (let i = 1; i < scored.length; i++) assert.ok(Math.abs(scored[i].at - scored[i - 1].at - 2 * BEAT) < 1e-9);
+  for (let i = 1; i < scored.length; i++) assert.ok(Math.abs(scored[i].at - scored[i - 1].at - 4 * BEAT) < 1e-9);
   for (let i = 1; i < scored.length; i++) {
     const aEnd = scored[i - 1].at + sc.cfg.timingOffset + sc.windowOf(i - 1);
     const bStart = scored[i].at + sc.cfg.timingOffset - sc.windowOf(i);
     assert.ok(aEnd <= bStart + 1e-9, `window ${i}`);
   }
-  assert.ok(sc.windowOf(5) > 0.35 && sc.windowOf(5) <= 0.4219, String(sc.windowOf(5)));
+  assert.ok(Math.abs(sc.windowOf(5) - 0.7) < 1e-9, String(sc.windowOf(5)));
 });
 test("keyframe poses are reached exactly on the beat; decoration (bounce/sway) is zero on beats", () => {
   const c = new Choreography(moves, song.choreo);
-  for (const m of scored.slice(0, 40)) {
+  for (const m of scored) {
     const s = c.specAt(m.at);
     for (const k of Object.keys(m.spec)) assert.ok(Math.abs(s[k] - m.spec[k]) < 1e-6, `${m.id} ${k}`);
   }
@@ -144,16 +145,16 @@ function run(playerAt) {
 }
 test("player copies every move with a realistic 0.15 s lag -> (nearly) all PERFECT", () => {
   const { sc } = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.15))));
-  assert.equal(sc.results.length, 112);
-  assert.ok(sc.counts.PERFECT >= 110, JSON.stringify(sc.counts));
+  assert.equal(sc.results.length, 56);
+  assert.ok(sc.counts.PERFECT >= 54, JSON.stringify(sc.counts));
   assert.equal(sc.counts.MISS, 0);
-  assert.equal(sc.maxCombo, 112);
+  assert.equal(sc.maxCombo, 56);
   assert.ok(sc.finalAccuracy > 85);
 });
-test("a 0.35 s late player is still credited; a 0.6 s late player loses points (timing counts)", () => {
+test("a 0.35 s late player is still credited; a 1.2 s late player loses points (timing counts)", () => {
   const a = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.35)))).sc;
-  const b = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.6)))).sc;
-  assert.ok(a.counts.MISS < 10, JSON.stringify(a.counts));
+  const b = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 1.2)))).sc;
+  assert.ok(a.counts.MISS < 6, JSON.stringify(a.counts));
   assert.ok(b.score < a.score * 0.85, `${a.score} vs ${b.score}`);
 });
 test("standing still the whole song -> no credit for the moves that differ from neutral (no fake score)", () => {
@@ -165,17 +166,17 @@ test("standing still the whole song -> no credit for the moves that differ from 
 test("tracking lost for 12 s: those moves are MISS, the dance goes on and scoring resumes afterwards, combo restarts", () => {
   const { sc, events } = run((c, t) => (t > 30 && t < 42 ? null : asCameraPose(c.poseAt(Math.max(0, t - 0.15)))));
   const missed = events.filter((e) => e.judgment === "MISS");
-  assert.ok(missed.length >= 10 && missed.length <= 15, String(missed.length));
+  assert.ok(missed.length >= 5 && missed.length <= 8, String(missed.length));
   assert.ok(events.at(-1).judgment === "PERFECT");
-  assert.ok(sc.maxCombo > 50);
-  assert.ok(sc.combo > 30 && sc.combo < 112, String(sc.combo));
+  assert.ok(sc.maxCombo > 25);
+  assert.ok(sc.combo > 15 && sc.combo < 56, String(sc.combo));
   assert.ok(missed.every((e) => e.points === 0));
 });
 test("no camera at all -> 0 points, every move MISS, but the run still completes", () => {
   const { sc, events } = run(() => null);
   assert.equal(sc.score, 0);
-  assert.equal(events.length, 112);
-  assert.equal(sc.counts.MISS, 112);
+  assert.equal(events.length, 56);
+  assert.equal(sc.counts.MISS, 56);
 });
 
 console.log(`\n${pass} song tests passed`);

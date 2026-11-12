@@ -44,59 +44,67 @@ export const POSES = {
     PUMP_L: { name: "Pump left", spec: { lUpper: 55, lFore: 135, rUpper: 20, rFore: 30, bend: 0.2 } },
     DIP: { name: "Dip", spec: { rUpper: 25, rFore: 60, lUpper: 25, lFore: 60, bend: 0.55 } },
 };
-/* ------------------------------------------------------------------ choreography: 8 poses per 8-count (one per beat) */
+/* ------------------------------------------------------------------ choreography: 2 moves per 8-count */
 /**
- * Poses sit on every beat, so the dancer never stops moving (groove poses on the even beats, 0-2-4-6, are
- * decoration). The scored "accent" poses land on counts 2-4-6-8 (beats 1,3,5,7), every 0.94 s.
+ * Each move lasts 4 beats (1.9 s): the dancer reaches the pose on count 2 and HOLDS it (with a small beat
+ * bounce and sway) until the next move starts. The scored moment is the arrival; a player has the whole
+ * hold to copy it. Chorus: side steps with arm swings, alternating sky punches, overhead clap + squat.
  */
-const CHORUS_A = "G_R SWING_R G_L SWING_L G_R SWING_R G_L SWING_L"; // side steps with arm swings (signature move)
-const CHORUS_B = "PUMP_R SKY_R PUMP_L SKY_L PUMP_R SKY_R PUMP_L SKY_L"; // alternating sky punches
-const CHORUS_C = "G_R SWEEP_R G_L SWEEP_L G_R SWING_R G_L SWING_L";
-const CHORUS_D = "DIP CLAP DIP SQUAT DIP CLAP G_R V_UP"; // overhead clap + squat
-const CHORUS_D_END = "DIP CLAP DIP SQUAT DIP CLAP G_R WIDE";
 export const DANCE = [
-    // Intro (2): the first 8-count is a free "watch" bar, not scored
-    "G_R OUT G_L OUT G_R CACTUS G_L CACTUS",
-    "G_R PT_R G_L PT_L G_R HIPS G_L HIPS",
+    "OUT CACTUS", // Intro: first 8-count is a free "watch" bar, not scored
+    "PT_R PT_L",
     // Verse 1 (4)
-    "G_R STEP_R G_L STEP_L G_R DISCO_R G_L DISCO_L",
-    "DIP HIPS DIP HIPS G_R SWEEP_R G_L SWEEP_L",
-    "G_R STEP_R G_L STEP_L DIP SQUAT G_R SKY",
-    "PUMP_R SKY_R PUMP_L SKY_L DIP SKY G_L HIPS",
+    "STEP_R STEP_L",
+    "DISCO_R DISCO_L",
+    "HIPS SWEEP_R",
+    "SWEEP_L SKY",
     // Pre-chorus (2)
-    "DIP V_UP DIP V_UP DIP V_UP DIP SKY",
-    "PUMP_R SKY_R PUMP_L SKY_L DIP SQUAT G_R SKY",
+    "SQUAT V_UP",
+    "SQUAT SKY",
     // Chorus (4)
-    CHORUS_A, CHORUS_B, CHORUS_C, CHORUS_D,
+    "SWING_R SWING_L",
+    "SKY_R SKY_L",
+    "SWEEP_R SWEEP_L",
+    "CLAP SQUAT",
     // Verse 2 (4)
-    "G_R PT_R G_L PT_L G_R SWING_R G_L SWING_L",
-    "DIP CACTUS DIP OUT DIP CACTUS DIP OUT",
-    "G_R COMBO_R G_L COMBO_L G_R COMBO_R G_L COMBO_L",
-    "DIP SQUAT DIP SKY DIP SQUAT DIP SKY",
+    "PT_R PT_L",
+    "CACTUS OUT",
+    "COMBO_R COMBO_L",
+    "HIPS SKY",
     // Pre-chorus 2 (2)
-    "DIP V_UP DIP V_UP DIP V_UP DIP SKY",
-    "PUMP_R SKY_R PUMP_L SKY_L DIP SQUAT G_R SKY",
+    "SQUAT V_UP",
+    "SQUAT SKY",
     // Chorus 2 (4)
-    CHORUS_A, CHORUS_B, CHORUS_C, CHORUS_D,
+    "SWING_R SWING_L",
+    "SKY_R SKY_L",
+    "SWEEP_R SWEEP_L",
+    "CLAP SQUAT",
     // Bridge (2)
-    "G_R DISCO_R G_L DISCO_L G_R HIPS G_L HIPS",
-    "DIP SQUAT DIP SKY DIP SKY G_R CLAP",
+    "DISCO_R DISCO_L",
+    "SQUAT SKY",
     // Final chorus (4)
-    CHORUS_A, CHORUS_B, CHORUS_C, CHORUS_D_END,
+    "SWING_R SWING_L",
+    "SKY_R SKY_L",
+    "SWEEP_R SWEEP_L",
+    "CLAP WIDE",
     // Outro (1)
-    "PUMP_R SKY_R PUMP_L SKY_L DIP CLAP G_R WIDE",
+    "SKY WIDE",
 ];
+/** Move length in beats; the pose is reached on beat 1 of each unit and held through beat 3. */
+export const MOVE_BEATS = 4;
 export function buildMoves() {
     const out = [];
+    let u = 0;
     DANCE.forEach((bar, e) => {
-        bar.split(" ").forEach((tok, k) => {
+        bar.split(" ").forEach((tok) => {
             const def = POSES[tok];
             if (!def)
                 throw new Error(`unknown pose ${tok}`);
-            const beat = e * 8 + k;
-            if (beat === 0)
-                return; // t = 0 is the neutral starting stance
-            out.push(mk(`${e}.${k}-${tok}`, def.name, beat * BEAT_SEC, def.spec, def.w ?? {}, e !== 0 && k % 2 === 1));
+            const beat = u * MOVE_BEATS;
+            // scored arrival on count 2, unscored hold keyframe on count 4 (same pose)
+            out.push(mk(`${u}-${tok}`, def.name, (beat + 1) * BEAT_SEC, def.spec, def.w ?? {}, e !== 0));
+            out.push(mk(`${u}h-${tok}`, def.name, (beat + 3) * BEAT_SEC, def.spec, def.w ?? {}, false));
+            u++;
         });
     });
     out.push(mk("finish", "Finish", TOTAL_BEATS * BEAT_SEC + 0.5, {}, {}, false));
@@ -142,14 +150,14 @@ export function buildSunshineShake() {
         id: "sunshine-shake",
         title: "Sunshine Shake",
         artist: "Dance Motion Originals",
-        blurb: "128 BPM · 1:49 · groove steps, disco points, sky punches",
+        blurb: "128 BPM · 1:49 · each move held ~2 s, repeated",
         bpm: BPM,
         totalBeats: TOTAL_BEATS,
         beatSec: BEAT_SEC,
         sections: SECTIONS,
         lyrics: LYRICS,
         moves: buildMoves(),
-        choreo: { transition: 0.4, leadIn: 3, beatSec: BEAT_SEC, bounce: 0.12, sway: 0.05 },
+        choreo: { transition: 0.55, leadIn: 3, beatSec: BEAT_SEC, bounce: 0.14, sway: 0.07 },
         scoring: SONG_SCORING,
         audio: "synth",
         vocalsUrl: "songs/sunshine-shake-vocals.mp3",

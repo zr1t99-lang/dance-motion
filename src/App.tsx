@@ -3,7 +3,8 @@ import { Engine } from "./engine.js";
 import { CameraError } from "./camera.js";
 import { TrackerError } from "./tracker.js";
 import { Stage3D, StageError } from "./stage3d.js";
-import { INSTRUCTOR_STYLE, PLAYER_STYLE, type AvatarStyle } from "./avatar3d.js";
+import { INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE, PLAYER_STYLE, type AvatarStyle } from "./avatar3d.js";
+import { HAIR_COLORS, captureCharacter, faceCanvas, loadCharacter, saveCharacter, type Character } from "./character.js";
 import { MusicPlayer, type MusicStatus } from "./songPlayer.js";
 import { buildSunshineShake } from "./songs/sunshineShake.js";
 import { buildTestRoutine } from "./songs/testRoutine.js";
@@ -45,6 +46,7 @@ function toAppError(e: any): AppError {
 function StageCanvas(props: {
   style: AvatarStyle;
   reflections: boolean;
+  dancers?: AvatarStyle[];
   onStage: (s: Stage3D | null) => void;
   onError: (e: any) => void;
 }) {
@@ -52,7 +54,7 @@ function StageCanvas(props: {
   useEffect(() => {
     let stage: Stage3D;
     try {
-      stage = new Stage3D(ref.current!, { style: props.style, reflection: props.reflections, antialias: true, maxPixelRatio: 1.5 });
+      stage = new Stage3D(ref.current!, { style: props.style, reflection: props.reflections, antialias: true, maxPixelRatio: 1.5, dancers: props.dancers });
     } catch (e) {
       props.onError(e);
       return;
@@ -363,6 +365,59 @@ function ChallengeScreen(props: {
   const lostRef = useRef(false);
   const lastJudge = useRef(null as Hud["last"]);
   const tRef = useRef(0);
+  const lastSeq = useRef(-1);
+
+  // ---- the player's own character (face photo + colours), kept only in this browser
+  const [character, setCharacter] = useState(loadCharacter() as Character | null);
+  const faceRef = useRef(null as HTMLCanvasElement | null);
+  const [charMsg, setCharMsg] = useState("");
+  const [charBusy, setCharBusy] = useState(0 as number); // countdown seconds while taking the photo
+  const charRef = useRef(character);
+  charRef.current = character;
+  const applyLook = (stage: Stage3D) => {
+    const c = charRef.current;
+    if (!c) return;
+    stage.avatar.setLook({ skin: c.skin, jacket: c.jacket, hair: c.hair });
+    const go = (cv: HTMLCanvasElement) => stage.avatar.setLook({ face: cv });
+    if (faceRef.current) go(faceRef.current);
+    else faceCanvas(c).then((cv) => { faceRef.current = cv; go(cv); }).catch(() => {});
+  };
+  const updateCharacter = (c: Character | null, cv?: HTMLCanvasElement | null) => {
+    setCharacter(c);
+    charRef.current = c;
+    saveCharacter(c);
+    faceRef.current = cv ?? null;
+    const stage = stageRef.current;
+    if (!stage) return;
+    if (c) applyLook(stage);
+    else {
+      stage.avatar.setLook({ face: null, skin: PLAYER_STYLE.skin, jacket: PLAYER_STYLE.jacket, hair: PLAYER_STYLE.hair });
+    }
+  };
+  const takePhoto = () => {
+    setCharMsg("Look straight at the camera…");
+    let n = 3;
+    setCharBusy(n);
+    const tick = () => {
+      n--;
+      if (n > 0) {
+        setCharBusy(n);
+        window.setTimeout(tick, 1000);
+        return;
+      }
+      setCharBusy(0);
+      const r = captureCharacter(engine.video, engine.latest?.pose ?? null, settings.mirror, charRef.current?.hair ?? HAIR_COLORS[0]);
+      if (!r.ok) {
+        setCharMsg(r.reason);
+        return;
+      }
+      faceCanvas(r.character).then((cv) => {
+        updateCharacter(r.character, cv);
+        setCharMsg("Done! This is your character now. Retake if you don't like it.");
+      });
+    };
+    window.setTimeout(tick, 1000);
+  };
 
   const finish = () => {
     const sc = scorerRef.current!;
@@ -443,7 +498,7 @@ function ChallengeScreen(props: {
     };
   }, [song]);
 
-  const frame = (_dt: number, now: number) => {
+  const frame = (dt: number, now: number) => {
     const stage = stageRef.current;
     if (!stage) return;
     const ph = phaseRef.current;
@@ -452,8 +507,15 @@ function ChallengeScreen(props: {
     else if (ph === "paused") t = pausedT.current;
     tRef.current = t;
 
-    // The instructor performs exactly the reference poses used by the scorer.
-    stage.avatar.setFromReference(choreo.poseAt(Math.max(0, t)));
+    // The two dancers perform exactly the reference poses used by the scorer; the centre avatar is the player.
+    const ref = choreo.poseAt(Math.max(0, t));
+    for (const d of stage.dancers) d.setFromReference(ref);
+    const fr = engine.latest;
+    if (!engine.trackingLost(now) && fr && fr.valid && fr.world && fr.seq !== lastSeq.current) {
+      lastSeq.current = fr.seq;
+      stage.avatar.setFromWorld(fr.world, settings.mirror, fr.pose ? { pose: fr.pose, aspect: fr.aspect, t: fr.t / 1000 } : null);
+    }
+    stage.avatar.step(dt);
     // decorative beat pulse on the arch only (never touches the instructor's pose)
     const bs = song.beatSec;
     const beatPhase = (((t % bs) + bs) % bs) / bs;
@@ -490,7 +552,7 @@ function ChallengeScreen(props: {
           combo: sc.combo,
           acc: sc.accuracy,
           stars: sc.stars,
-          nextIdx: choreo.nextMoveIndex(t, Math.min(sc.cfg.timingTolerance, 0.42) + sc.cfg.timingOffset),
+          nextIdx: choreo.nextMoveIndex(t, Math.min(sc.cfg.timingTolerance, 0.7) + sc.cfg.timingOffset),
           counts: { ...sc.counts },
           last: lastJudge.current,
         });
@@ -520,11 +582,15 @@ function ChallengeScreen(props: {
   return (
     <>
       <StageCanvas
-        style={INSTRUCTOR_STYLE}
+        style={PLAYER_STYLE}
+        dancers={[INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE]}
         reflections={settings.reflections}
         onStage={(s) => {
           stageRef.current = s;
-          if (s) s.onFrame = (dt, now) => frameRef.current(dt, now);
+          if (s) {
+            s.onFrame = (dt, now) => frameRef.current(dt, now);
+            applyLook(s);
+          }
         }}
         onError={props.onFatal}
       />
@@ -576,7 +642,7 @@ function ChallengeScreen(props: {
         {/* right: camera preview + next moves */}
         <PreviewBox engine={engine} mirror={settings.mirror} overlay={settings.overlay} lost={lost} className="side" />
         <div className="next">
-          <div className="next-t">Next Move</div>
+          <div className="next-t">Coming up</div>
           <div className="next-row">
             {upcoming.length === 0 && <div className="dim">{phase === "done" ? "Finished" : "Last move"}</div>}
             {upcoming.map((m, i) => (
@@ -588,6 +654,9 @@ function ChallengeScreen(props: {
           <div className="next-n">{upcoming[0] ? upcoming[0].name : ""}</div>
         </div>
 
+        <div className="copy-tag l">COPY ME ▼</div>
+        <div className="copy-tag c">YOU ▼</div>
+        <div className="copy-tag r">COPY ME ▼</div>
         {lost && playing && <div className="lost-banner">TRACKING LOST</div>}
         {soundMsg && phase !== "ready" && <div className="wait-banner" onClick={() => setSoundMsg("")}>{soundMsg}</div>}
 
@@ -609,6 +678,8 @@ function ChallengeScreen(props: {
           <div className="overlay clear">
             <div className="panel ready">
               <h2>Dance Copy</h2>
+              <div className="ready-cols">
+              <div className="rc-left">
               <div className="song-pick">
                 {songs.map((x) => (
                   <button key={x.id} className={"sp" + (x.id === song.id ? " sel" : "")} onClick={() => setSongId(x.id)}>
@@ -635,9 +706,48 @@ function ChallengeScreen(props: {
                   {soundMsg && <p className="hint">{soundMsg}</p>}
                 </div>
               )}
+              <div className="char-box">
+                <div className="char-head">
+                  <b>👤 Your character</b>
+                  <span className="hint">Photo stays on this device only.</span>
+                </div>
+                <div className="char-row">
+                  {character ? <img className="char-face" src={character.face} alt="your face" /> : <div className="char-face empty">?</div>}
+                  <div className="char-btns">
+                    <button className="btn ghost small" disabled={charBusy > 0} onClick={takePhoto}>
+                      {charBusy > 0 ? `📸 ${charBusy}…` : character ? "📸 Retake" : "📸 Take photo"}
+                    </button>
+                    {character && <button className="btn ghost small" onClick={() => updateCharacter(null)}>Reset</button>}
+                  </div>
+                  <div className="hair-row" title="Hair colour">
+                    {HAIR_COLORS.map((h) => (
+                      <button
+                        key={h}
+                        className={"hair" + ((character?.hair ?? PLAYER_STYLE.hair) === h ? " sel" : "")}
+                        style={{ background: "#" + h.toString(16).padStart(6, "0") }}
+                        onClick={() => {
+                          stageRef.current?.avatar.setLook({ hair: h });
+                          if (character) {
+                            const c = { ...character, hair: h };
+                            setCharacter(c);
+                            charRef.current = c;
+                            saveCharacter(c);
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {charMsg && <div className="hint">{charMsg}</div>}
+              </div>
+              </div>
+              <div className="rc-right">
+              <p><b>How to play:</b> the <b>two dancers on the sides</b> are the instructors: copy them. The character in the <b>middle is you</b> (it follows your camera). The small green figures at the right are only a preview of the <i>next</i> move.</p>
               <p>Stand where the camera sees your <b>whole body</b>. During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you.</p>
               <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing (±{settings.tolerance.toFixed(1)} s).</p>
               <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error"} onClick={start}>START</button>
+              </div>
+              </div>
             </div>
           </div>
         )}

@@ -6,6 +6,8 @@ export interface StageOptions {
   reflection: boolean;
   antialias: boolean;
   maxPixelRatio: number;
+  /** Two backup dancers (the instructors) stand on both sides of the centre avatar. */
+  dancers?: AvatarStyle[];
 }
 
 export class StageError extends Error {}
@@ -31,6 +33,8 @@ function canvasTex(w: number, h: number, draw: (c: CanvasRenderingContext2D) => 
  */
 export class Stage3D {
   readonly avatar: Avatar;
+  /** Instructor avatars flanking the player (empty in Motion Mirror). */
+  readonly dancers: Avatar[] = [];
   /** Called every render frame before drawing: (dtSeconds, rAF timestamp ms). */
   onFrame: ((dt: number, now: number) => void) | null = null;
   private renderer: any;
@@ -64,7 +68,7 @@ export class Stage3D {
     r.outputColorSpace = THREE.SRGBColorSpace;
 
     this.camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 60);
-    this.camera.position.set(0, 1.05, 5.0);
+    this.camera.position.set(0, 1.1, opts.dancers?.length ? 6.1 : 5.0);
     this.camera.lookAt(0, 1.0, 0);
 
     this.buildEnvironment();
@@ -80,6 +84,18 @@ export class Stage3D {
     this.avatar = new Avatar(opts.style, opts.reflection);
     this.scene.add(this.avatar.group);
     if (this.avatar.reflection) this.scene.add(this.avatar.reflection);
+
+    if (opts.dancers?.length) {
+      const n = opts.dancers.length;
+      opts.dancers.forEach((st, i) => {
+        const d = new Avatar(st, opts.reflection);
+        d.place(n === 1 ? 0 : (i === 0 ? -1 : 1) * 1.45, 0.88);
+        this.scene.add(d.group);
+        if (d.reflection) this.scene.add(d.reflection);
+        this.dancers.push(d);
+      });
+      this.avatar.setLateralLimit(0.35);
+    }
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(canvas);
@@ -232,6 +248,7 @@ export class Stage3D {
     this.raf = 0;
     this.ro.disconnect();
     this.avatar.dispose();
+    this.dancers.forEach((d) => d.dispose());
     this.scene.traverse((o: any) => {
       o.geometry?.dispose?.();
       const m = o.material;

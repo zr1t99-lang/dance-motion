@@ -38,6 +38,19 @@ try:
         check("UI is honest: says there are no sung vocals when no vocal stem is shipped", "no sung vocals" in hint, hint)
         page.screenshot(path=str(OUT / "20-song-ready.png"))
 
+        # ---- character from a camera photo
+        check("ready panel explains who to copy (two side dancers; centre = you)", "two dancers on the sides" in page.inner_text(".panel.ready"))
+        page.click(".char-btns button:has-text('Take photo')")
+        page.wait_for_selector("img.char-face", timeout=8000)
+        stored = page.evaluate("localStorage.getItem('dance-motion.character.v1')")
+        check("camera photo -> character created and saved on the device", stored is not None and "data:image/png" in stored, (stored or "")[:60])
+        check("character photo is a real image of the camera frame (not blank)", page.evaluate("""() => { const i = document.querySelector('img.char-face'); return i && i.src.length > 1500; }"""))
+        page.screenshot(path=str(OUT / "25-character.png"))
+        page.click(".char-btns button:has-text('Reset')")
+        check("Reset removes the saved character", page.evaluate("localStorage.getItem('dance-motion.character.v1')") is None)
+        page.click(".char-btns button:has-text('Take photo')")
+        page.wait_for_selector("img.char-face", timeout=8000)
+
         t_click = page.evaluate("performance.now()")
         page.click(".panel.ready .btn:not(.ghost)")
         t0 = t_click + 3000 + 100 + 8
@@ -84,8 +97,8 @@ try:
         import re
         m = re.search(r"PERFECT (\d+)", txt)
         perfect = int(m.group(1)) if m else -1
-        check("synthetic perfect dancer: ≥ 100 of 112 moves PERFECT through the real clock/camera loop", perfect >= 100, f"PERFECT={perfect}")
-        check("112 scored moves in the result list", txt.count("\n") > 112)
+        check("synthetic perfect dancer: ≥ 50 of 56 moves PERFECT through the real clock/camera loop", perfect >= 50, f"PERFECT={perfect}")
+        check("56 scored moves in the result list", txt.count("\n") > 56)
         check("no NaN transforms in the dancer animation", (page.evaluate("window.__nan || 0")) == 0)
         errs = [l for l in page.logs if ("[pageerror]" in l or "[error]" in l) and "404" not in l]  # 404 = the optional vocal stem file, not shipped
         check("no JS errors during the full song", not errs, "; ".join(errs)[:300])

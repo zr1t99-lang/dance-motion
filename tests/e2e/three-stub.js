@@ -59,6 +59,7 @@ export class Quaternion {
 class Object3D {
   constructor() { this.children = []; this.position = new Vector3(); this.scale = new Vector3(1, 1, 1); this.quaternion = new Quaternion(); this.rotation = { x: 0, y: 0, z: 0 }; this.visible = true; this.renderOrder = 0; }
   add(...o) { this.children.push(...o); return this; }
+  remove(o) { this.children = this.children.filter((c) => c !== o); }
   traverse(fn) { fn(this); this.children.forEach((c) => c.traverse(fn)); }
   lookAt() {}
 }
@@ -69,7 +70,7 @@ export class PerspectiveCamera extends Object3D { constructor(fov) { super(); th
 class Geo { constructor(...a) { this.args = a; } dispose() { window.__disposed = (window.__disposed || 0) + 1; } }
 export class CylinderGeometry extends Geo {} export class SphereGeometry extends Geo {} export class BoxGeometry extends Geo {}
 export class PlaneGeometry extends Geo {} export class TorusGeometry extends Geo {} export class CircleGeometry extends Geo {}
-class Mat { constructor(o = {}) { Object.assign(this, o); } dispose() { window.__disposed = (window.__disposed || 0) + 1; } }
+class Mat { constructor(o = {}) { Object.assign(this, o); if (typeof o.color === 'number') this.color = { set() {} }; if (o.emissive !== undefined) this.emissive = { set() {} }; } dispose() { window.__disposed = (window.__disposed || 0) + 1; } }
 export class MeshStandardMaterial extends Mat {} export class MeshBasicMaterial extends Mat {}
 export class CanvasTexture { constructor(c) { this.image = c; this.repeat = { set() {} }; } dispose() { window.__disposed = (window.__disposed || 0) + 1; } }
 export class HemisphereLight extends Object3D {} export class DirectionalLight extends Object3D {}

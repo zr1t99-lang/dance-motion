@@ -5,6 +5,9 @@ import { Locomotion, Retargeter } from "./retarget.js";
 export const INSTRUCTOR_STYLE = {
     jacket: 0xff2fb4, pants: 0x2b1b92, skin: 0xf6cfe0, shoes: 0xffffff, glove: 0xf4ff4a, hair: 0x1d1047, rim: 0xff7bf2, shades: true,
 };
+export const INSTRUCTOR2_STYLE = {
+    jacket: 0x22e6c8, pants: 0x1b2a92, skin: 0xe9c7a4, shoes: 0xffffff, glove: 0xff6ad5, hair: 0xf5d84a, rim: 0x6cf2ff, shades: true,
+};
 export const PLAYER_STYLE = {
     jacket: 0x2aa8ff, pants: 0x261c86, skin: 0xf1d3c4, shoes: 0xffffff, glove: 0x6cf2ff, hair: 0x140b36, rim: 0x6cf2ff, shades: false,
 };
@@ -27,6 +30,11 @@ class Part {
         if (!reflect) {
             this.rim = new THREE.Mesh(geos[kind], new THREE.MeshBasicMaterial({ color: rimColor, side: THREE.BackSide }));
         }
+    }
+    setColor(color) {
+        this.core.material.color.set(color);
+        if (this.core.material.emissive)
+            this.core.material.emissive.set(color);
     }
     addTo(g) {
         g.add(this.core);
@@ -126,6 +134,37 @@ class Body {
         if (this.parts.pony.rim)
             this.parts.pony.rim.visible = s.shades;
     }
+    faceMesh = null;
+    faceTex = null;
+    /** Recolour the avatar (the player's own character). Any field may be omitted. */
+    setLook(look) {
+        const p = this.parts;
+        if (look.skin !== undefined)
+            for (const n of ["neck", "head", "farmL", "farmR"])
+                p[n].setColor(look.skin);
+        if (look.jacket !== undefined)
+            for (const n of ["torso", "uarmL", "uarmR", "shoulderL", "shoulderR", "elbowL", "elbowR"])
+                p[n].setColor(look.jacket);
+        if (look.hair !== undefined)
+            for (const n of ["hair", "pony"])
+                p[n].setColor(look.hair);
+        if (look.face !== undefined) {
+            if (this.faceMesh) {
+                this.group.remove(this.faceMesh);
+                this.faceMesh.material.dispose();
+                this.faceTex?.dispose();
+                this.faceMesh = null;
+                this.faceTex = null;
+            }
+            if (look.face && !this.reflect) {
+                const t = new THREE.CanvasTexture(look.face);
+                t.colorSpace = THREE.SRGBColorSpace;
+                this.faceTex = t;
+                this.faceMesh = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ map: t, transparent: true }));
+                this.group.add(this.faceMesh);
+            }
+        }
+    }
     /** J: 33 scene-space joint positions (metres, y up, +z toward the viewer). */
     layout(J, fe) {
         const p = this.parts;
@@ -162,6 +201,14 @@ class Body {
         p.pony.bone(tmp, tmp2, 0.032);
         tmp.copy(head).addScaledVector(fwd, 0.098).addScaledVector(hup, 0.012);
         p.shades.box(tmp, hx, hup, fwd, 0.19, 0.04, 0.03);
+        if (this.faceMesh) {
+            // the player's own photo, as a round "face plate" just in front of the head
+            tmp.copy(head).addScaledVector(fwd, 0.118).addScaledVector(hup, 0.004);
+            _m.makeBasis(hx, hup, fwd);
+            this.faceMesh.quaternion.setFromRotationMatrix(_m);
+            this.faceMesh.position.copy(tmp);
+            this.faceMesh.scale.setScalar(0.092);
+        }
         // limbs
         const sides = [
             ["L", LM.L_SHOULDER, LM.L_ELBOW, LM.L_WRIST, LM.L_HIP, LM.L_KNEE, LM.L_ANKLE, 0, 0],
@@ -200,6 +247,8 @@ export class Avatar {
     geos;
     floorOffset = 0;
     lateral = 0;
+    baseX = 0;
+    latLimit = 1.8;
     lift = 0;
     liftTarget = 0;
     seen = new Array(POSE_LANDMARK_COUNT).fill(false);
@@ -223,6 +272,26 @@ export class Avatar {
             this.reflGroup.scale.y = -1;
             this.reflGroup.add(this.reflBody.group);
         }
+    }
+    /** Put the avatar at x metres from the centre, scaled (used for the two backup dancers). */
+    place(x, scale) {
+        this.baseX = x;
+        this.group.position.x = x;
+        this.group.scale.setScalar(scale);
+        if (this.reflGroup) {
+            this.reflGroup.position.x = x;
+            this.reflGroup.scale.set(scale, -scale, scale);
+        }
+    }
+    /** Limit how far the player's avatar may travel sideways (so it doesn't walk into the dancers). */
+    setLateralLimit(m) {
+        this.latLimit = m;
+    }
+    /** Customise the look (the player's character: skin / shirt / hair colour and face photo). */
+    setLook(look) {
+        this.body.setLook(look);
+        if (look.skin !== undefined || look.jacket !== undefined || look.hair !== undefined)
+            this.reflBody?.setLook({ skin: look.skin, jacket: look.jacket, hair: look.hair });
     }
     /** Extra scene object to add alongside `group` (floor reflection), or null. */
     get reflection() {
@@ -266,7 +335,7 @@ export class Avatar {
         }
         if (img) {
             const l = this.loco.update(img.pose, img.aspect, img.t);
-            this.lateral = Math.max(-1.8, Math.min(1.8, l.x * sx));
+            this.lateral = Math.max(-this.latLimit, Math.min(this.latLimit, l.x * sx));
             this.liftTarget = l.lift;
         }
     }
@@ -314,10 +383,10 @@ export class Avatar {
             this.lift += (this.liftTarget - this.lift) * (1 - Math.exp(-d * 28));
             const y = this.floorOffset + this.lift;
             this.group.position.y = y;
-            this.group.position.x = this.lateral;
+            this.group.position.x = this.baseX + this.lateral;
             if (this.reflGroup) {
                 this.reflGroup.position.y = -y;
-                this.reflGroup.position.x = this.lateral;
+                this.reflGroup.position.x = this.baseX + this.lateral;
             }
             this.body.layout(this.rt, this.retarget);
             this.reflBody?.layout(this.rt, this.retarget);
@@ -327,6 +396,7 @@ export class Avatar {
         this.reflBody?.layout(this.joints, this.still);
     }
     dispose() {
+        this.body.setLook({ face: null });
         for (const g of Object.values(this.geos))
             g.dispose();
         for (const body of [this.body, this.reflBody]) {

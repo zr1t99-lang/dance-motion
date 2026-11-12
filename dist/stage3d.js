@@ -22,6 +22,8 @@ function canvasTex(w, h, draw) {
 export class Stage3D {
     canvas;
     avatar;
+    /** Instructor avatars flanking the player (empty in Motion Mirror). */
+    dancers = [];
     /** Called every render frame before drawing: (dtSeconds, rAF timestamp ms). */
     onFrame = null;
     renderer;
@@ -52,7 +54,7 @@ export class Stage3D {
         r.setPixelRatio(Math.min(window.devicePixelRatio || 1, opts.maxPixelRatio));
         r.outputColorSpace = THREE.SRGBColorSpace;
         this.camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 60);
-        this.camera.position.set(0, 1.05, 5.0);
+        this.camera.position.set(0, 1.1, opts.dancers?.length ? 6.1 : 5.0);
         this.camera.lookAt(0, 1.0, 0);
         this.buildEnvironment();
         // lights
@@ -66,6 +68,18 @@ export class Stage3D {
         this.scene.add(this.avatar.group);
         if (this.avatar.reflection)
             this.scene.add(this.avatar.reflection);
+        if (opts.dancers?.length) {
+            const n = opts.dancers.length;
+            opts.dancers.forEach((st, i) => {
+                const d = new Avatar(st, opts.reflection);
+                d.place(n === 1 ? 0 : (i === 0 ? -1 : 1) * 1.45, 0.88);
+                this.scene.add(d.group);
+                if (d.reflection)
+                    this.scene.add(d.reflection);
+                this.dancers.push(d);
+            });
+            this.avatar.setLateralLimit(0.35);
+        }
         this.ro = new ResizeObserver(() => this.resize());
         this.ro.observe(canvas);
         this.resize();
@@ -191,6 +205,7 @@ export class Stage3D {
         this.raf = 0;
         this.ro.disconnect();
         this.avatar.dispose();
+        this.dancers.forEach((d) => d.dispose());
         this.scene.traverse((o) => {
             o.geometry?.dispose?.();
             const m = o.material;

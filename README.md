@@ -95,6 +95,9 @@ The e2e test boots the real `index.html` + `dist/`, uses Chrome's fake *camera d
 | Instrumental music (generated in code, `src/synth.ts`, rendered in a Web Worker, exportable with `node tools/export-wav.mjs`) | **Working technically**; **how it sounds has not been judged by ear** in my environment |
 | **Sung vocals** | **NOT generated** (no singing model available). Lyrics are shown as text; the melody is a synth lead. A real vocal stem can be dropped in (`songs/sunshine-shake-vocals.mp3`), see `SONG_BRIEF.md` |
 | Shoulder bounce / hip sway in the choreography | Animated on the 3D dancer, **not scored** (2D camera can't judge them reliably) |
+| **Two backup dancers + you in the middle** (instructors on both sides, your character follows your camera in the centre) | **Implemented**; layout logic tested, **the real 3D look has not been seen** (Three.js not available in my sandbox) |
+| **My character from a photo** (face photo cropped from your camera frame onto the avatar's head; skin and shirt colour sampled; hair colour chosen) | **Implemented**; photo capture/storage tested in headless Chrome with a fake camera; **how the face looks on the 3D head is unverified**; not a 3D face scan: it is a flat photo "face plate" |
+| Choreography: each move is held ~2 s (4 beats), 56 scored moves | **Working** (tests) |
 | Backing click beat (120 BPM) for the 30 s test routine | **Implemented** |
 | TV Mode: TV layout, fullscreen, screen wake-lock, mirroring instructions | **Partial by design**: the phone stays the camera/tracker; you mirror its screen with AirPlay / Cast / HDMI. **No automatic TV connection is claimed or implemented.** |
 | Fullscreen / landscape lock | Works where supported (Android Chrome); not on iPhone Safari |
