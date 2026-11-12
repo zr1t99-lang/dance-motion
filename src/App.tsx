@@ -1,0 +1,796 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Engine } from "./engine.js";
+import { CameraError } from "./camera.js";
+import { TrackerError } from "./tracker.js";
+import { Stage3D, StageError } from "./stage3d.js";
+import { INSTRUCTOR_STYLE, PLAYER_STYLE, type AvatarStyle } from "./avatar3d.js";
+import { BeatAudio } from "./audio.js";
+import { Choreography, buildRefPose, refComparable } from "./choreography.js";
+import { BODY_GROUPS, computeFeatures, groupInFrame, type Features } from "./poseMath.js";
+import { ChallengeScorer, DEFAULT_SCORING, type MoveResult } from "./scoring.js";
+import { loadSettings, saveSettings, type Settings } from "./settings.js";
+import { LM, type Facing, type Judgment } from "./types.js";
+import { DebugPanel, PreviewBox, SettingsPanel, Stars, StickFigure, Toast, TVPanel, useStageBox } from "./ui.js";
+
+/* ------------------------------------------------------------------ errors */
+
+interface AppError {
+  title: string;
+  message: string;
+  detail?: string;
+  kind: string;
+}
+
+function toAppError(e: any): AppError {
+  if (e instanceof CameraError) {
+    const titles: Record<string, string> = {
+      denied: "Camera permission denied",
+      notfound: "No camera found",
+      insecure: "HTTPS required",
+      busy: "Camera unavailable",
+      unsupported: "Camera not supported",
+    };
+    return { title: titles[e.code] ?? "Camera problem", message: e.message, detail: e.detail, kind: e.code };
+  }
+  if (e instanceof TrackerError) return { title: "Pose model failed to load", message: e.message, detail: e.detail, kind: "model" };
+  if (e instanceof StageError) return { title: "3D graphics unavailable", message: e.message, kind: "webgl" };
+  return { title: "Something went wrong", message: String(e?.message ?? e), kind: "unknown" };
+}
+
+/* ------------------------------------------------------------ 3D canvas */
+
+function StageCanvas(props: {
+  style: AvatarStyle;
+  reflections: boolean;
+  onStage: (s: Stage3D | null) => void;
+  onError: (e: any) => void;
+}) {
+  const ref = useRef(null as HTMLCanvasElement | null);
+  useEffect(() => {
+    let stage: Stage3D;
+    try {
+      stage = new Stage3D(ref.current!, { style: props.style, reflection: props.reflections, antialias: true, maxPixelRatio: 1.5 });
+    } catch (e) {
+      props.onError(e);
+      return;
+    }
+    props.onStage(stage);
+    stage.start();
+    return () => {
+      props.onStage(null);
+      stage.dispose();
+    };
+  }, []);
+  return <canvas ref={ref} className="stage3d" />;
+}
+
+/* -------------------------------------------------------------- screens */
+
+function Menu(props: { onStart: (m: "mirror" | "challenge") => void; onSettings: () => void; onTV: () => void; onFullscreen: () => void }) {
+  const insecure = !window.isSecureContext;
+  return (
+    <div className="screen menu">
+      <div className="menu-title">
+        <span>DANCE</span>
+        <span className="alt">MOTION</span>
+      </div>
+      <div className="menu-sub">Real camera body-tracking · prototype</div>
+      {insecure && (
+        <div className="warn">
+          This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README).
+        </div>
+      )}
+      <div className="menu-cards">
+        <button className="card pink" onClick={() => props.onStart("challenge")}>
+          <div className="card-t">DANCE CHALLENGE</div>
+          <div className="card-d">Copy the instructor in a 30-second routine. Scored on joint angles, position and timing.</div>
+        </button>
+        <button className="card blue" onClick={() => props.onStart("mirror")}>
+          <div className="card-t">MOTION MIRROR</div>
+          <div className="card-d">A 3D avatar that mirrors your body live from the camera. No pre-made animation.</div>
+        </button>
+      </div>
+      <div className="menu-row">
+        <button className="pill" onClick={props.onSettings}>⚙ Settings</button>
+        <button className="pill" onClick={props.onTV}>📺 TV Mode</button>
+        <button className="pill" onClick={props.onFullscreen}>⛶ Fullscreen</button>
+      </div>
+      <div className="menu-foot">The camera only starts after you tap a mode. Video never leaves your device: pose detection runs locally in the browser.</div>
+    </div>
+  );
+}
+
+function Loading({ msg }: { msg: string }) {
+  return (
+    <div className="screen center">
+      <div className="spinner" />
+      <div className="big-msg">{msg}</div>
+      <div className="dim">First start downloads the pose model (a few MB). Needs an internet connection.</div>
+    </div>
+  );
+}
+
+function ErrorScreen(props: { err: AppError; onRetry: () => void; onBack: () => void }) {
+  const { err } = props;
+  const hints: Record<string, string[]> = {
+    insecure: [
+      "Browsers only allow camera access on HTTPS pages or on localhost.",
+      "Host this folder on any HTTPS static host (GitHub Pages, Netlify, Cloudflare Pages), or",
+      "Run `node serve.mjs` on your computer and use a tunnel (e.g. `npx localtunnel --port 8080` or a Cloudflare tunnel) to get an HTTPS link, or",
+      "Android + USB: Chrome → chrome://inspect → Port forwarding 8080 → open http://localhost:8080 on the phone.",
+    ],
+    denied: ["Tap the lock / site-settings icon in the address bar → Camera → Allow, then press Try again.", "On iOS: Settings → Safari → Camera → Ask or Allow."],
+    notfound: ["Connect or enable a camera, or open the game on a phone.", "Switch to the other camera in Settings if only one is detected."],
+    busy: ["Close other apps/tabs that may be using the camera (video calls, camera apps), then Try again."],
+    model: ["Check your connection and try again.", "The pose runtime comes from cdn.jsdelivr.net and the model from storage.googleapis.com — make sure neither is blocked."],
+    webgl: ["Try a different browser, or enable hardware acceleration."],
+  };
+  return (
+    <div className="screen center">
+      <div className="err-title">{err.title}</div>
+      <div className="big-msg">{err.message}</div>
+      <ul className="hints">{(hints[err.kind] ?? []).map((h) => <li key={h}>{h}</li>)}</ul>
+      {err.detail && <div className="dim mono">{err.detail}</div>}
+      <div className="btn-row">
+        <button className="btn" onClick={props.onRetry}>Try again</button>
+        <button className="btn ghost" onClick={props.onBack}>Back</button>
+      </div>
+    </div>
+  );
+}
+
+function Calibration(props: {
+  engine: Engine;
+  settings: Settings;
+  facing: Facing;
+  onDone: () => void;
+  onBack: () => void;
+  onSwitch: (f: Facing) => void;
+}) {
+  const { engine } = props;
+  const [st, setSt] = useState({ checks: BODY_GROUPS.map(() => false), progress: 0, lost: true, hint: "" });
+  useEffect(() => {
+    let okSince = 0;
+    let done = false;
+    const id = window.setInterval(() => {
+      const f = engine.latest;
+      const now = performance.now();
+      const lost = engine.trackingLost(now) || !f || !f.pose;
+      const checks = BODY_GROUPS.map((g) => !lost && groupInFrame(f!.pose!, g.ids));
+      const all = checks.every(Boolean);
+      if (all) okSince = okSince || now;
+      else okSince = 0;
+      const progress = okSince ? Math.min(1, (now - okSince) / 1200) : 0;
+      let hint = "Stand back until your entire body is visible.";
+      if (lost) hint = "No body detected yet. " + hint;
+      else if (!checks[5] || !checks[6]) hint = "Step back: your knees / feet are not fully in view.";
+      else if (!checks[3] || !checks[2]) hint = "Make sure your arms are in view and not hidden.";
+      else if (all) hint = "Hold still…";
+      setSt({ checks, progress, lost, hint });
+      if (progress >= 1 && !done) {
+        done = true;
+        props.onDone();
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, [engine]);
+
+  return (
+    <div className="screen calib">
+      <div className="calib-cam">
+        <PreviewBox engine={engine} mirror={props.settings.mirror} overlay={true} lost={st.lost} lostText="NO BODY DETECTED" label="Camera" className="big" />
+      </div>
+      <div className="calib-side">
+        <div className="calib-title">CALIBRATION</div>
+        <div className="calib-hint">{st.hint}</div>
+        <div className="checks">
+          {BODY_GROUPS.map((g, i) => (
+            <div key={g.label} className={"check " + (st.checks[i] ? "ok" : "")}>
+              <span>{st.checks[i] ? "✓" : "○"}</span> {g.label}
+            </div>
+          ))}
+        </div>
+        <div className="bar"><div style={{ width: st.progress * 100 + "%" }} /></div>
+        <div className="btn-row">
+          <button className="btn small ghost" onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>⟲ Switch camera</button>
+          <button className="btn small ghost" onClick={props.onBack}>Back</button>
+        </div>
+        <div className="dim">Landmarks must be detected with confidence and inside the frame. Nothing is skipped or simulated.</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------- Motion Mirror */
+
+function MirrorScreen(props: {
+  engine: Engine;
+  settings: Settings;
+  facing: Facing;
+  showDebug: boolean;
+  onToggleDebug: () => void;
+  onSwitch: (f: Facing) => void;
+  onSettings: () => void;
+  onMirror: () => void;
+  onExit: () => void;
+  onFatal: (e: any) => void;
+}) {
+  const { engine, settings } = props;
+  const stageRef = useRef(null as Stage3D | null);
+  const lastSeq = useRef(-1);
+  const hadPose = useRef(false);
+  const lastInfo = useRef(0);
+  const [info, setInfo] = useState({ lost: true, conf: 0, cam: null as number | null, pose: 0, had: false });
+  const setRef = useRef(settings);
+  setRef.current = settings;
+
+  const frame = (dt: number, now: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const lost = engine.trackingLost(now);
+    const f = engine.latest;
+    // Only valid, current pose data drives the avatar; when tracking is lost it simply holds still.
+    if (!lost && f && f.valid && f.world && f.seq !== lastSeq.current) {
+      lastSeq.current = f.seq;
+      hadPose.current = true;
+      const hipX = f.pose ? (f.pose[LM.L_HIP].x + f.pose[LM.R_HIP].x) / 2 : null;
+      stage.avatar.setFromWorld(f.world, setRef.current.mirror, hipX);
+    }
+    stage.avatar.step(dt);
+    if (now - lastInfo.current > 120) {
+      lastInfo.current = now;
+      const s = engine.getStats();
+      setInfo({ lost, conf: f && !lost ? f.confidence : 0, cam: s.cameraFps, pose: s.poseFps, had: hadPose.current });
+    }
+  };
+  const frameRef = useRef(frame);
+  frameRef.current = frame;
+
+  return (
+    <>
+      <StageCanvas
+        style={PLAYER_STYLE}
+        reflections={settings.reflections}
+        onStage={(s) => {
+          stageRef.current = s;
+          if (s) s.onFrame = (dt, now) => frameRef.current(dt, now);
+        }}
+        onError={props.onFatal}
+      />
+      <div className="hud">
+        <div className="badge top-left">
+          <div className="badge-t">MOTION MIRROR</div>
+          <div className="badge-s">
+            {info.lost ? "—" : `Confidence ${Math.round(info.conf * 100)}%`} · Cam {info.cam === null ? "n/a" : info.cam.toFixed(0)} fps · Pose {info.pose.toFixed(0)} fps
+          </div>
+        </div>
+        <PreviewBox engine={engine} mirror={settings.mirror} overlay={settings.overlay} lost={info.lost && info.had} className="side" />
+        {info.lost && info.had && <div className="lost-banner">TRACKING LOST</div>}
+        {!info.had && <div className="wait-banner">Step into view: waiting for your body to be detected…</div>}
+        <div className="toolbar">
+          <button onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>⟲ Camera</button>
+          <button onClick={props.onMirror}>{settings.mirror ? "Mirror: On" : "Mirror: Off"}</button>
+          <button onClick={() => props.onSettings()}>⚙</button>
+          <button className={props.showDebug ? "sel" : ""} onClick={props.onToggleDebug}>Debug</button>
+          <button onClick={props.onExit}>✕ Exit</button>
+        </div>
+        {props.showDebug && <DebugPanel engine={engine} facing={props.facing} onSwitch={props.onSwitch} onClose={props.onToggleDebug} />}
+      </div>
+    </>
+  );
+}
+
+/* -------------------------------------------------------- Dance Challenge */
+
+type Phase = "ready" | "countdown" | "playing" | "paused" | "done";
+
+interface Hud {
+  t: number;
+  score: number;
+  combo: number;
+  acc: number;
+  stars: number;
+  nextIdx: number;
+  counts: Record<Judgment, number>;
+  last: { j: Judgment; key: number } | null;
+}
+const HUD0: Hud = { t: 0, score: 0, combo: 0, acc: 0, stars: 0, nextIdx: 0, counts: { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 }, last: null };
+
+interface Results {
+  score: number;
+  accuracy: number;
+  maxCombo: number;
+  counts: Record<Judgment, number>;
+  moves: MoveResult[];
+  stars: number;
+}
+
+const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+function ChallengeScreen(props: {
+  engine: Engine;
+  settings: Settings;
+  facing: Facing;
+  showDebug: boolean;
+  onToggleDebug: () => void;
+  onSwitch: (f: Facing) => void;
+  onSettings: () => void;
+  onExit: () => void;
+  onFatal: (e: any) => void;
+}) {
+  const { engine, settings } = props;
+  const choreo = useMemo(() => new Choreography(), []);
+  const targets = useMemo(() => choreo.moves.map((m) => refComparable(m.spec)), [choreo]);
+  const scored = choreo.scoredMoves;
+
+  const scorerRef = useRef(null as ChallengeScorer | null);
+  const stageRef = useRef(null as Stage3D | null);
+  const phaseRef = useRef("ready" as Phase);
+  const [phase, setPhaseState] = useState("ready" as Phase);
+  const setPhase = (p: Phase) => {
+    phaseRef.current = p;
+    setPhaseState(p);
+  };
+  const startRef = useRef(0); // performance.now() at choreography t = 0
+  const pausedT = useRef(0);
+  const audioRef = useRef(null as BeatAudio | null);
+  const lastFeat = useRef(null as Features | null);
+  const lastHudAt = useRef(0);
+  const keyRef = useRef(0);
+  const countRef = useRef(null as number | null);
+  const [count, setCount] = useState(null as number | null);
+  const [hud, setHud] = useState(HUD0);
+  const [results, setResults] = useState(null as Results | null);
+  const [lost, setLost] = useState(false);
+  const lostRef = useRef(false);
+  const lastJudge = useRef(null as Hud["last"]);
+  const tRef = useRef(0);
+
+  const finish = () => {
+    const sc = scorerRef.current!;
+    sc.tick(1e9);
+    audioRef.current?.stop();
+    const acc = sc.finalAccuracy;
+    setResults({
+      score: sc.score,
+      accuracy: acc,
+      maxCombo: sc.maxCombo,
+      counts: { ...sc.counts },
+      moves: sc.results.map((r) => ({ ...r })),
+      stars: acc >= 80 ? 3 : acc >= 60 ? 2 : acc >= 40 ? 1 : 0,
+    });
+    setPhase("done");
+  };
+
+  const start = () => {
+    scorerRef.current = new ChallengeScorer(choreo, { ...DEFAULT_SCORING, timingTolerance: settings.tolerance });
+    startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: first audio beat is scheduled 0.1 s ahead
+    lastJudge.current = null;
+    keyRef.current = 0;
+    setResults(null);
+    setHud(HUD0);
+    audioRef.current?.stop();
+    if (settings.music) {
+      audioRef.current = new BeatAudio();
+      audioRef.current.start();
+    } else audioRef.current = null;
+    setPhase("countdown");
+  };
+
+  const pause = () => {
+    if (phaseRef.current !== "playing" && phaseRef.current !== "countdown") return;
+    pausedT.current = tRef.current;
+    audioRef.current?.pause();
+    setPhase("paused");
+  };
+  const resume = () => {
+    startRef.current = performance.now() - pausedT.current * 1000;
+    audioRef.current?.resume();
+    setPhase(pausedT.current < 0 ? "countdown" : "playing");
+  };
+
+  // pause automatically if the tab/app goes to the background
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) pause();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  // real pose frames -> scorer
+  useEffect(
+    () =>
+      engine.subscribe((fr) => {
+        if (fr.pose && fr.valid) {
+          const f = computeFeatures(fr.pose, fr.aspect);
+          lastFeat.current = f;
+          const ph = phaseRef.current;
+          if (f && scorerRef.current && (ph === "countdown" || ph === "playing")) scorerRef.current.pushFrame((fr.t - startRef.current) / 1000, f);
+        } else lastFeat.current = null;
+      }),
+    [engine],
+  );
+
+  useEffect(() => () => audioRef.current?.stop(), []);
+
+  const frame = (_dt: number, now: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const ph = phaseRef.current;
+    let t = 0;
+    if (ph === "countdown" || ph === "playing") t = (now - startRef.current) / 1000;
+    else if (ph === "paused") t = pausedT.current;
+    tRef.current = t;
+
+    // The instructor performs exactly the reference poses used by the scorer.
+    stage.avatar.setFromReference(choreo.poseAt(Math.max(0, t)));
+    // decorative beat pulse on the arch only (never touches the instructor's pose)
+    const beatPhase = ((((t + choreo.leadIn) % 0.5) + 0.5) % 0.5) / 0.5;
+    stage.pulse(ph === "playing" || ph === "countdown" ? 1 - beatPhase : 0);
+
+    const isLost = engine.trackingLost(now);
+    if (isLost !== lostRef.current) {
+      lostRef.current = isLost;
+      setLost(isLost);
+    }
+
+    if (ph === "countdown") {
+      const n = Math.ceil(-t);
+      const show = t >= 0 ? 0 : n; // 0 => "GO!"
+      if (countRef.current !== show) {
+        countRef.current = show;
+        setCount(show);
+      }
+      if (t >= 0) setPhase("playing");
+    }
+    if (ph === "playing") {
+      if (countRef.current !== null && t > 0.8) {
+        countRef.current = null;
+        setCount(null);
+      }
+      const sc = scorerRef.current!;
+      const events = sc.tick(t);
+      for (const ev of events) lastJudge.current = { j: ev.judgment, key: ++keyRef.current };
+      if (events.length || now - lastHudAt.current > 66) {
+        lastHudAt.current = now;
+        setHud({
+          t: Math.max(0, t),
+          score: sc.score,
+          combo: sc.combo,
+          acc: sc.accuracy,
+          stars: sc.stars,
+          nextIdx: choreo.nextMoveIndex(t, sc.cfg.timingTolerance),
+          counts: { ...sc.counts },
+          last: lastJudge.current,
+        });
+      }
+      if (t >= choreo.duration) finish();
+    }
+  };
+  const frameRef = useRef(frame);
+  frameRef.current = frame;
+
+  const getExtra = () => {
+    const t = tRef.current;
+    let cur = null as null | (typeof choreo.moves)[number];
+    for (const m of scored) if (m.at - 1 <= t) cur = m;
+    const sc = scorerRef.current;
+    const live = sc && cur ? sc.live(lastFeat.current, refComparable(choreo.specAt(Math.max(0, t))), cur.weights) : null;
+    return { refName: cur ? cur.name : "Neutral", liveAccuracy: live, baselineOk: sc ? !!sc.baseline : false };
+  };
+
+  const upcoming = [hud.nextIdx, hud.nextIdx + 1, hud.nextIdx + 2].map((i) => scored[i]).filter(Boolean);
+  const playing = phase === "playing" || phase === "paused";
+  const judgeColor: Record<Judgment, string> = { PERFECT: "perfect", GREAT: "great", GOOD: "good", MISS: "miss" };
+
+  return (
+    <>
+      <StageCanvas
+        style={INSTRUCTOR_STYLE}
+        reflections={settings.reflections}
+        onStage={(s) => {
+          stageRef.current = s;
+          if (s) s.onFrame = (dt, now) => frameRef.current(dt, now);
+        }}
+        onError={props.onFatal}
+      />
+      <div className="hud">
+        {/* top-left: routine + progress */}
+        <div className="song">
+          <div className="song-ic">♪</div>
+          <div className="song-body">
+            <div className="song-t">Dance Challenge</div>
+            <div className="song-s">Original Test Routine</div>
+            <div className="song-bar">
+              <div className="bar"><div style={{ width: Math.min(100, (hud.t / choreo.duration) * 100) + "%" }} /></div>
+              <span>{fmtTime(hud.t)} / {fmtTime(choreo.duration)}</span>
+            </div>
+          </div>
+        </div>
+        {/* top-center: stars + score */}
+        <div className="top-center">
+          <Stars n={hud.stars} />
+          <div className="score"><small>SCORE</small> {hud.score.toLocaleString()}</div>
+        </div>
+        {/* top-right: accuracy */}
+        <div className="acc">
+          <div className="acc-l">Accuracy</div>
+          <div className="acc-v">{playing || phase === "done" ? Math.round(hud.acc) : 0}%</div>
+        </div>
+
+        {/* left: judgment popup + ladder */}
+        {hud.last && <div key={hud.last.key} className={"popup " + judgeColor[hud.last.j]}>{hud.last.j}{hud.last.j !== "MISS" ? "!" : ""}</div>}
+        <div className="ladder">
+          {(["PERFECT", "GREAT", "GOOD", "MISS"] as Judgment[]).map((j) => (
+            <div key={j} className={"lad " + judgeColor[j] + (hud.last?.j === j ? " on" : "")}>
+              {j}<b>{hud.counts[j]}</b>
+            </div>
+          ))}
+        </div>
+
+        {/* bottom-left: combo */}
+        <div className="combo"><small>Combo</small><span key={hud.combo}>x{hud.combo}</span></div>
+
+        {/* right: camera preview + next moves */}
+        <PreviewBox engine={engine} mirror={settings.mirror} overlay={settings.overlay} lost={lost} className="side" />
+        <div className="next">
+          <div className="next-t">Next Move</div>
+          <div className="next-row">
+            {upcoming.length === 0 && <div className="dim">{phase === "done" ? "Finished" : "Last move"}</div>}
+            {upcoming.map((m, i) => (
+              <div key={m.id} className={"next-i " + (i === 0 ? "first" : "")}>
+                <StickFigure pose={buildRefPose(m.spec)} active={i === 0} />
+              </div>
+            ))}
+          </div>
+          <div className="next-n">{upcoming[0] ? upcoming[0].name : ""}</div>
+        </div>
+
+        {lost && playing && <div className="lost-banner">TRACKING LOST</div>}
+
+        {/* controls */}
+        <div className="toolbar">
+          {phase === "playing" && <button onClick={pause}>❚❚ Pause</button>}
+          <button onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>⟲ Camera</button>
+          <button className={props.showDebug ? "sel" : ""} onClick={props.onToggleDebug}>Debug</button>
+          <button onClick={props.onSettings}>⚙</button>
+          <button onClick={props.onExit}>✕ Exit</button>
+        </div>
+
+        {props.showDebug && <DebugPanel engine={engine} getExtra={getExtra} facing={props.facing} onSwitch={props.onSwitch} onClose={props.onToggleDebug} />}
+
+        {/* overlays */}
+        {phase === "ready" && (
+          <div className="overlay clear">
+            <div className="panel ready">
+              <h2>Ready?</h2>
+              <p>Stand where the camera sees your <b>whole body</b>. During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you.</p>
+              <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing (±{settings.tolerance.toFixed(1)} s).</p>
+              <button className="btn" onClick={start}>START</button>
+            </div>
+          </div>
+        )}
+        {phase === "countdown" && count !== null && count > 0 && <div key={count} className="count">{count}</div>}
+        {phase === "playing" && count === 0 && <div className="count go">GO!</div>}
+        {phase === "paused" && (
+          <div className="overlay clear">
+            <div className="panel ready">
+              <h2>Paused</h2>
+              <div className="btn-row">
+                <button className="btn" onClick={resume}>Resume</button>
+                <button className="btn ghost" onClick={props.onExit}>Quit</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {phase === "done" && results && (
+          <div className="overlay clear">
+            <div className="panel results">
+              <h2>Routine complete</h2>
+              <Stars n={results.stars} />
+              <div className="res-top">
+                <div><small>SCORE</small><b>{results.score.toLocaleString()}</b></div>
+                <div><small>ACCURACY</small><b>{Math.round(results.accuracy)}%</b></div>
+                <div><small>MAX COMBO</small><b>x{results.maxCombo}</b></div>
+              </div>
+              <div className="res-counts">
+                {(["PERFECT", "GREAT", "GOOD", "MISS"] as Judgment[]).map((j) => (
+                  <span key={j} className={judgeColor[j]}>{j} {results.counts[j]}</span>
+                ))}
+              </div>
+              <div className="res-moves">
+                {results.moves.map((r) => (
+                  <div key={r.move.id} className="res-m">
+                    <span>{r.move.name}</span>
+                    <span className={judgeColor[r.judgment ?? "MISS"]}>{r.judgment}</span>
+                    <span>{Math.round(r.best * 100)}%</span>
+                    <span className="dim">{r.bestDt === null ? "not detected" : `${r.bestDt >= 0 ? "+" : ""}${Math.round(r.bestDt * 1000)} ms`}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="btn-row">
+                <button className="btn" onClick={() => setPhase("ready")}>Play again</button>
+                <button className="btn ghost" onClick={props.onExit}>Menu</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ App */
+
+type Screen = "menu" | "loading" | "error" | "calibrate" | "mirror" | "challenge";
+
+export function App() {
+  const box = useStageBox();
+  const engine = useMemo(() => new Engine(), []);
+  const [settings, setSettingsState] = useState(loadSettings);
+  const [screen, setScreen] = useState("menu" as Screen);
+  const [mode, setMode] = useState("challenge" as "mirror" | "challenge");
+  const [loadMsg, setLoadMsg] = useState("");
+  const [err, setErr] = useState(null as AppError | null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTV, setShowTV] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [toast, setToast] = useState(null as string | null);
+  const toastTimer = useRef(0);
+
+  const setSettings = (s: Settings) => {
+    setSettingsState(s);
+    saveSettings(s);
+    engine.maxFps = s.maxFps;
+  };
+  useEffect(() => {
+    engine.maxFps = settings.maxFps;
+    return () => engine.dispose();
+  }, []);
+
+  const flash = (m: string) => {
+    setToast(m);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+  };
+
+  /* keep the screen awake while a mode is open */
+  useEffect(() => {
+    if (screen === "menu" || screen === "error") return;
+    let lock: any = null;
+    let cancelled = false;
+    const acquire = async () => {
+      try {
+        if ("wakeLock" in navigator) lock = await (navigator as any).wakeLock.request("screen");
+        if (cancelled) lock?.release?.();
+      } catch {
+        /* not available or denied: harmless */
+      }
+    };
+    acquire();
+    const onVis = () => {
+      if (!document.hidden) acquire();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVis);
+      lock?.release?.();
+    };
+  }, [screen]);
+
+  const goMenu = () => {
+    engine.stop();
+    setShowDebug(false);
+    setScreen("menu");
+  };
+
+  const begin = async (m: "mirror" | "challenge") => {
+    setMode(m);
+    setErr(null);
+    setScreen("loading");
+    setLoadMsg("Requesting camera…");
+    try {
+      // called straight from the tap, so the permission prompt is allowed
+      await engine.start(settings.facing, settings.model, setLoadMsg);
+      setScreen("calibrate");
+    } catch (e) {
+      engine.stop();
+      setErr(toAppError(e));
+      setScreen("error");
+    }
+  };
+
+  const switchCamera = async (f: Facing) => {
+    const prev = settings.facing;
+    if (f === prev && engine.getStats().running) return;
+    try {
+      await engine.switchCamera(f);
+      setSettings({ ...settings, facing: f, mirror: f === "user" });
+      const note = engine.getStats().cameraNote;
+      if (note) flash(note);
+    } catch (e) {
+      flash(toAppError(e).message);
+      try {
+        await engine.switchCamera(prev);
+      } catch {
+        /* original camera also gone: tracking-lost state will show */
+      }
+    }
+  };
+
+  const fullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else {
+        await document.documentElement.requestFullscreen();
+        // Orientation lock only works in fullscreen, and only on browsers that support it (Android Chrome).
+        await (window.screen as any).orientation?.lock?.("landscape").catch(() => {});
+      }
+    } catch {
+      flash("Fullscreen isn't available in this browser (on iPhone, use Share → Add to Home Screen).");
+    }
+  };
+
+  const fatal = (e: any) => {
+    engine.stop();
+    setErr(toAppError(e));
+    setScreen("error");
+  };
+
+  const common = {
+    engine,
+    settings,
+    facing: settings.facing,
+    showDebug,
+    onToggleDebug: () => setShowDebug((v) => !v),
+    onSwitch: switchCamera,
+    onSettings: () => setShowSettings(true),
+    onExit: goMenu,
+    onFatal: fatal,
+  };
+
+  return (
+    <div className="app">
+      <div className={"stage" + (settings.tvMode ? " tv" : "")} style={{ width: box.w, height: box.h, "--u": box.w / 100 + "px" }}>
+        {screen === "menu" && <Menu onStart={begin} onSettings={() => setShowSettings(true)} onTV={() => setShowTV(true)} onFullscreen={fullscreen} />}
+        {screen === "loading" && <Loading msg={loadMsg} />}
+        {screen === "error" && err && <ErrorScreen err={err} onRetry={() => begin(mode)} onBack={goMenu} />}
+        {screen === "calibrate" && (
+          <Calibration
+            engine={engine}
+            settings={settings}
+            facing={settings.facing}
+            onDone={() => setScreen(mode)}
+            onBack={goMenu}
+            onSwitch={switchCamera}
+          />
+        )}
+        {screen === "mirror" && (
+          <MirrorScreen {...common} onMirror={() => setSettings({ ...settings, mirror: !settings.mirror })} />
+        )}
+        {screen === "challenge" && <ChallengeScreen {...common} />}
+
+        {showSettings && (
+          <SettingsPanel
+            settings={settings}
+            onChange={setSettings}
+            onSwitchCamera={switchCamera}
+            cameraActive={screen === "calibrate" || screen === "mirror" || screen === "challenge"}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
+        {showTV && <TVPanel settings={settings} onChange={setSettings} onFullscreen={fullscreen} onClose={() => setShowTV(false)} />}
+        <Toast msg={toast} />
+      </div>
+      {box.portrait && (
+        <div className="rotate">
+          <div className="rotate-ic">⟳</div>
+          <div>Rotate your phone to landscape</div>
+          <small>Dance Motion is a landscape game. Unlock screen rotation if nothing happens.</small>
+        </div>
+      )}
+    </div>
+  );
+}
