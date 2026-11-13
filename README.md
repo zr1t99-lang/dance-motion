@@ -141,3 +141,8 @@ The Zumba reference is no longer matched by eye. The lead dancer in the first 60
 - Honest limits: only the lead dancer, 2D angles (no depth); close-ups cut the legs off, so leg terms are switched off there;
   black cutaways (27-29.3 s, 42-43.6 s) have no data; about 35 of 185 keyframes are scored. Not verified on a real phone.
 - The hand-matched list is kept as `buildZumbaMovesByEye()` for comparison only.
+
+### The private clip is remembered per browser
+Choose the 60 s clip once in Dance Control: it is kept in this browser's IndexedDB (`dance-motion-private`) and loaded automatically
+next time ("Forget the saved clip" removes it). It never leaves the device and is not in the repo. Another phone/browser, or cleared site data,
+means choosing it once again. Tested: `tests/e2e/e2e-saved.py`.

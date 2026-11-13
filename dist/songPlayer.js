@@ -93,6 +93,48 @@ function unlockAudioSession() {
         return null;
     }
 }
+/** The picked clip is remembered in THIS browser only (IndexedDB), so it is chosen once per device. Never uploaded, never in the repo. */
+const DB = "dance-motion-private", STORE = "audio", KEY = "control-clip";
+function idb() {
+    return new Promise((res, rej) => {
+        const r = indexedDB.open(DB, 1);
+        r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+    });
+}
+export async function saveClip(f, name) {
+    try {
+        const db = await idb();
+        await new Promise((res, rej) => {
+            const tx = db.transaction(STORE, "readwrite");
+            tx.objectStore(STORE).put({ blob: f, name }, KEY);
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+        });
+    }
+    catch { /* private mode / quota: the player just has to pick the file again next time */ }
+}
+export async function loadSavedClip() {
+    try {
+        const db = await idb();
+        return await new Promise((res) => {
+            const rq = db.transaction(STORE).objectStore(STORE).get(KEY);
+            rq.onsuccess = () => res(rq.result ?? null);
+            rq.onerror = () => res(null);
+        });
+    }
+    catch {
+        return null;
+    }
+}
+export async function forgetClip() {
+    try {
+        const db = await idb();
+        await new Promise((res) => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).delete(KEY); tx.oncomplete = () => res(); tx.onerror = () => res(); });
+    }
+    catch { /* nothing to forget */ }
+}
 export class MusicPlayer {
     keepAlive = null;
     /** Called when the browser refuses to start sound (shown to the player; never silently ignored). */
@@ -104,18 +146,27 @@ export class MusicPlayer {
     vocalBuf = null;
     fileBuf = null;
     /** Decode an audio (or video) file the player picked. Stays in memory only: nothing is stored or uploaded. */
-    async loadFile(f) {
+    async loadFile(f, fromSaved = false) {
         try {
             const AC = window.AudioContext || window.webkitAudioContext;
             const tmp = new AC();
             this.fileBuf = await tmp.decodeAudioData(await f.arrayBuffer());
             tmp.close();
-            this.status = { instrumental: "ready", vocals: false, fileInfo: `${f.name} (${this.fileBuf.duration.toFixed(1)} s)` };
+            this.status = { instrumental: "ready", vocals: false, fileInfo: `${f.name ?? "clip"} (${this.fileBuf.duration.toFixed(1)} s)` };
+            if (!fromSaved)
+                await saveClip(f, f.name ?? "clip");
         }
         catch (e) {
             this.fileBuf = null;
             this.status = { instrumental: "error", vocals: false, error: "Could not decode that file as audio. Pick the .mp3/.m4a/.wav clip. " + String(e?.message ?? e) };
         }
+        return this.status;
+    }
+    /** Forget the remembered clip and the decoded audio. */
+    async forget() {
+        this.fileBuf = null;
+        await forgetClip();
+        this.status = { instrumental: "idle", vocals: false, needsFile: true };
         return this.status;
     }
     /** Prepare the song's audio (render instrumental, look for an optional vocal stem). */
@@ -133,6 +184,14 @@ export class MusicPlayer {
                 }
                 catch {
                     this.fileBuf = null;
+                }
+            }
+            if (!this.fileBuf) {
+                const saved = await loadSavedClip();
+                if (saved) {
+                    const st = await this.loadFile(new File([saved.blob], saved.name), true);
+                    if (st.instrumental === "ready")
+                        return st;
                 }
             }
             this.status = this.fileBuf

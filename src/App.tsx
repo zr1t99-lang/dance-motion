@@ -564,7 +564,7 @@ function ChallengeScreen(props: {
   // render the instrumental (in a worker) as soon as a song is selected
   useEffect(() => {
     let alive = true;
-    setMusic({ instrumental: song.audio === "synth" ? "rendering" : "ready", vocals: false });
+    setMusic({ instrumental: song.audio === "synth" || song.audio === "file" ? "rendering" : "ready", vocals: false });
     musicRef.current!.prepare(song).then((st) => alive && setMusic({ ...st }));
     return () => {
       alive = false;
@@ -774,9 +774,9 @@ function ChallengeScreen(props: {
                 <div className="char-box">
                   <div className="char-head">
                     <b>{tr("🎵 Audio file (private test)")}</b>
-                    <span className="hint">{tr("stays on this device")}</span>
+                    <span className="hint">{tr("remembered on this device only")}</span>
                   </div>
-                  <p className="hint">{music.fileInfo ? (isAr() ? `تم التحميل: ${music.fileInfo}.` : `Loaded: ${music.fileInfo}.`) : tr("Choose your 60-second clip (mp3/m4a/wav). Only the first 60 s are used. It is never uploaded or stored.")}</p>
+                  <p className="hint">{music.fileInfo ? (isAr() ? `تم التحميل: ${music.fileInfo}.` : `Loaded: ${music.fileInfo}.`) : tr("Choose your 60-second clip (mp3/m4a/wav) once. Only the first 60 s are used. It is remembered in this browser only and never uploaded.")}</p>
                   <input
                     type="file"
                     accept="audio/*,video/mp4"
@@ -787,6 +787,11 @@ function ChallengeScreen(props: {
                       setMusic({ ...(await musicRef.current!.loadFile(f)) });
                     }}
                   />
+                  {music.fileInfo && (
+                    <button className="btn ghost small" onClick={async () => setMusic({ ...(await musicRef.current!.forget()) })}>
+                      {tr("Forget the saved clip")}
+                    </button>
+                  )}
                 </div>
               )}
               {song.audio !== "beat" && (
