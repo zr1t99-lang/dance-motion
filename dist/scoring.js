@@ -18,9 +18,24 @@ export const DEFAULT_SCORING = {
     confZero: 0.35,
     timingOffset: 0,
     gateStrength: 0.4,
+    timingCore: 0.35,
+    timingEdge: 0.7,
+    earlyPerfect: false,
 };
-/** Scoring settings for music-driven dances (moves every ~0.94 s): small, centred timing windows. */
-export const SONG_SCORING = { ...DEFAULT_SCORING, timingOffset: 0.15, gateStrength: 0.2 };
+/**
+ * Scoring for "follow the dancers" songs: the player copies a move AFTER the dancers have started it, so the
+ * window opens right after the dancers arrive (about 0.1 s) and stays open for ~1.7 s (until just before the next
+ * move is due). Anything in the middle 75% of that window gets full timing credit; the edges lose at most 15%.
+ */
+export const SONG_SCORING = {
+    ...DEFAULT_SCORING,
+    timingTolerance: 0.9,
+    timingOffset: 0.95,
+    gateStrength: 0.2,
+    timingCore: 0.75,
+    timingEdge: 0.85,
+    earlyPerfect: true,
+};
 /** Share of the angle/position score taken from the worse arm (rest = weighted mean of all limbs). */
 const ARM_MIN_BLEND = 0.7;
 const falloff = (err, tol, max) => Math.min(1, Math.max(0, 1 - (err - tol) / (max - tol)));
@@ -76,12 +91,12 @@ export function confidenceFactor(conf, cfg) {
     return Math.min(1, Math.max(0, (conf - cfg.confZero) / (cfg.confFull - cfg.confZero)));
 }
 /** 1 inside the central 35% of the window, falling linearly to 0.7 at its edge. */
-export function timingFactor(dt, tol) {
+export function timingFactor(dt, tol, coreFrac = 0.35, edge = 0.7) {
     const a = Math.abs(dt);
-    const core = tol * 0.35;
+    const core = tol * coreFrac;
     if (a <= core)
         return 1;
-    return 1 - 0.3 * Math.min(1, (a - core) / (tol - core));
+    return 1 - (1 - edge) * Math.min(1, (a - core) / (tol - core));
 }
 export function classify(score, cfg) {
     if (score >= cfg.perfect)
@@ -150,7 +165,7 @@ export class ChallengeScorer {
             if (Math.abs(dtc) > tol)
                 continue;
             const parts = similarity(this.targets[i], comp, r.move.weights, this.cfg, f.segVis);
-            const total = parts.total * cf * timingFactor(dtc, tol);
+            const total = parts.total * cf * timingFactor(dtc, tol, this.cfg.timingCore, this.cfg.timingEdge);
             r.frames++;
             if (total > r.best) {
                 r.best = total;
@@ -164,7 +179,11 @@ export class ChallengeScorer {
         const out = [];
         for (let i = 0; i < this.results.length; i++) {
             const r = this.results[i];
-            if (r.judged || t <= r.move.at + this.cfg.timingOffset + this.windowOf(i))
+            if (r.judged)
+                continue;
+            const closed = t > r.move.at + this.cfg.timingOffset + this.windowOf(i);
+            const early = this.cfg.earlyPerfect && r.best >= this.cfg.perfect && t > r.move.at + 0.3;
+            if (!closed && !early)
                 continue;
             r.judged = true;
             r.judgment = classify(r.best, this.cfg);

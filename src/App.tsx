@@ -436,7 +436,7 @@ function ChallengeScreen(props: {
   };
 
   const start = () => {
-    scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: settings.tolerance });
+    scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: song.audio === "synth" ? Math.max(song.scoring.timingTolerance, settings.tolerance) : settings.tolerance });
     startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: audio is scheduled slightly ahead
     lastJudge.current = null;
     keyRef.current = 0;
@@ -552,7 +552,7 @@ function ChallengeScreen(props: {
           combo: sc.combo,
           acc: sc.accuracy,
           stars: sc.stars,
-          nextIdx: choreo.nextMoveIndex(t, Math.min(sc.cfg.timingTolerance, 0.7) + sc.cfg.timingOffset),
+          nextIdx: choreo.nextMoveIndex(t, song.audio === "synth" ? 0 : sc.cfg.timingTolerance),
           counts: { ...sc.counts },
           last: lastJudge.current,
         });
@@ -744,7 +744,7 @@ function ChallengeScreen(props: {
               <div className="rc-right">
               <p><b>How to play:</b> the <b>two dancers on the sides</b> are the instructors: copy them. The character in the <b>middle is you</b> (it follows your camera). The small green figures at the right are only a preview of the <i>next</i> move.</p>
               <p>Stand where the camera sees your <b>whole body</b>. During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you.</p>
-              <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing (±{settings.tolerance.toFixed(1)} s).</p>
+              <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing. {song.audio === "synth" ? "You copy AFTER the dancers: you have about 1.7 s from the moment they strike a pose, so no need to be at the same time as them." : `Timing window ±${settings.tolerance.toFixed(1)} s.`}</p>
               <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error"} onClick={start}>START</button>
               </div>
               </div>

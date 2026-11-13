@@ -109,5 +109,5 @@ Two moves per 8-count: each move is reached on count 2 (scored) and **held for a
 | 28 | Overhead clap → Arms up, feet wide |
 | 29 | Both hands up → Arms up, feet wide |
 
-What the camera scores: arm and leg angles, relative joint positions, sideways step, knee bend, timing (±0.42 s window, centred 0.15 s after the beat to allow for human reaction). **Not scored:** shoulder bounce and hip sway (they are decoration on the 3D dancer; 2D camera tracking can't judge them reliably).
+What the camera scores: arm and leg angles, relative joint positions, sideways step, knee bend, timing (follow-the-leader: you copy AFTER the dancers; a move counts if you strike it any time from ~0.1 s to ~1.8 s after the dancers do). **Not scored:** shoulder bounce and hip sway (they are decoration on the 3D dancer; 2D camera tracking can't judge them reliably).
 

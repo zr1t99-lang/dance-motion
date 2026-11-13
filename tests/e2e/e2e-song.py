@@ -1,6 +1,6 @@
 """
 Real-time (~115 s) headless-Chrome run of the Dance Copy song with the REAL UI, scorer, music player and clocks.
-Stubbed: three.js (nothing drawn) and MediaPipe (a scripted "player" that copies the dancer with a 0.15 s lag).
+Stubbed: three.js (nothing drawn) and MediaPipe (a scripted "player" that copies each move 1.0 s AFTER the dancers).
 Verifies plumbing, sync and scoring logic; NOT what the music sounds like, NOT 3D visuals, NOT real pose quality.
 Run:  python3 tests/e2e/e2e-song.py
 """
@@ -54,7 +54,7 @@ try:
         t_click = page.evaluate("performance.now()")
         page.click(".panel.ready .btn:not(.ghost)")
         t0 = t_click + 3000 + 100 + 8
-        page.evaluate(f"window.__synth = {{ mode: 'copy', song: true, t0: {t0}, lag: 0.15, noise: 0.0015 }}")
+        page.evaluate(f"window.__synth = {{ mode: 'copy', song: true, t0: {t0}, lag: 1.0, noise: 0.0015 }}")
         page.wait_for_selector(".count", timeout=3000)
         started = time.time()
         sd = page.evaluate("window.__songDebug ? {sched: window.__songDebug.scheduledFor, lat: window.__songDebug.latency, startPerf: window.__songDebug.startPerf} : null")

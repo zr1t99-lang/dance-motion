@@ -53,7 +53,7 @@ test("scored moves 1.875 s apart; scorer windows never overlap", () => {
     const bStart = scored[i].at + sc.cfg.timingOffset - sc.windowOf(i);
     assert.ok(aEnd <= bStart + 1e-9, `window ${i}`);
   }
-  assert.ok(Math.abs(sc.windowOf(5) - 0.7) < 1e-9, String(sc.windowOf(5)));
+  assert.ok(Math.abs(sc.windowOf(5) - 0.84375) < 1e-9, String(sc.windowOf(5))); // 0.45 x 1.875 s spacing
 });
 test("keyframe poses are reached exactly on the beat; decoration (bounce/sway) is zero on beats", () => {
   const c = new Choreography(moves, song.choreo);
@@ -151,11 +151,16 @@ test("player copies every move with a realistic 0.15 s lag -> (nearly) all PERFE
   assert.equal(sc.maxCombo, 56);
   assert.ok(sc.finalAccuracy > 85);
 });
-test("a 0.35 s late player is still credited; a 1.2 s late player loses points (timing counts)", () => {
-  const a = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.35)))).sc;
-  const b = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 1.2)))).sc;
-  assert.ok(a.counts.MISS < 6, JSON.stringify(a.counts));
-  assert.ok(b.score < a.score * 0.85, `${a.score} vs ${b.score}`);
+test("FOLLOW-THE-LEADER: a player who copies each move 0.6 / 1.0 / 1.3 s AFTER the dancers still scores PERFECT on (nearly) every move", () => {
+  for (const lag of [0.6, 1.0, 1.3]) {
+    const { sc } = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - lag))));
+    assert.ok(sc.counts.PERFECT >= 50 && sc.counts.MISS <= 2, `lag ${lag}: ${JSON.stringify(sc.counts)}`);
+  }
+});
+test("timing still counts: a player 2.4 s behind (a whole move late) scores far lower", () => {
+  const ok = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.9)))).sc;
+  const late = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 2.4)))).sc;
+  assert.ok(late.score < ok.score * 0.5, `${ok.score} vs ${late.score}`);
 });
 test("standing still the whole song -> no credit for the moves that differ from neutral (no fake score)", () => {
   const { sc } = run(() => asCameraPose(buildRefPose(NEUTRAL)));
