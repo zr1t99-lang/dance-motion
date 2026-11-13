@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { Choreography, buildRefPose, refComparable, NEUTRAL } from "../dist/choreography.js";
 import { computeFeatures, toComparable, BaselineCapture } from "../dist/poseMath.js";
 import { ChallengeScorer, DEFAULT_SCORING, SONG_SCORING, classify, similarity, lateFactor, popupText } from "../dist/scoring.js";
-import { ZUMBA_REF, buildZumbaControl } from "../dist/songs/zumbaControl.js";
+import { ZUMBA_REF, buildZumbaControl, buildZumbaMovesByEye } from "../dist/songs/zumbaControl.js";
 
 let pass = 0;
 const test = (n, f) => { f(); pass++; console.log("  ok  " + n); };
@@ -110,7 +110,7 @@ test("no MISS popup while the player is out of view", () => {
 
 console.log("One registration per move");
 test("one pose cannot be credited early to the next identical move (two squats in a row)", () => {
-  const def = buildZumbaControl(); const ch = new Choreography(def.moves, def.choreo);
+  const def = buildZumbaControl(); const ch = new Choreography(buildZumbaMovesByEye(), def.choreo);
   const sq = ch.scoredMoves.filter((m) => m.id.includes("SQUAT"));
   assert.equal(sq.length, 2, "expects the two consecutive squats of the Zumba routine");
   const run = (until) => {

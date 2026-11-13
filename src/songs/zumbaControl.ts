@@ -2,6 +2,7 @@ import { mk, type Move } from "../choreography.js";
 import { DEFAULT_SCORING, type ScoringConfig } from "../scoring.js";
 import { POSES } from "./sunshineShake.js";
 import type { SongDef } from "./types.js";
+import { ZUMBA_TRACK } from "./zumbaTrack.js";
 
 /**
  * PRIVATE DEVELOPMENT TEST (Dance Control mode only).
@@ -61,7 +62,25 @@ export const CONTROL_SCORING: ScoringConfig = {
 
 export const beatTime = (b: number) => ZUMBA_REF.firstBeatSec + (b * 60) / ZUMBA_REF.bpm;
 
+/**
+ * Moves measured from the video: one keyframe per half-beat (lead dancer, pose-tracked), scored on the beats where the track is
+ * confident and the dancer is not just standing. Leg terms are switched off where the shot cut the legs off.
+ */
 export function buildZumbaMoves(): Move[] {
+  const out: Move[] = [];
+  ZUMBA_TRACK.forEach((r, i) => {
+    const [t, rU, rF, lU, lF, rT, rS, lT, lS, hs, bend, legs, scored] = r;
+    const w = legs ? {} : { leg: 0, height: 0 };
+    out.push(
+      mk(`v${i}`, "Move " + (i + 1), t, { rUpper: rU, rFore: rF, lUpper: lU, lFore: lF, rThigh: rT, rShin: rS, lThigh: lT, lShin: lS, hipShift: hs, bend }, w, scored === 1),
+    );
+  });
+  out.push(mk("finish", "Finish", 61, {}, {}, false));
+  return out;
+}
+
+/** The earlier hand-matched move list (judged by eye, 22 moves). Kept for comparison only; no longer used by the game. */
+export function buildZumbaMovesByEye(): Move[] {
   const out: Move[] = [];
   for (const [beat, key, note] of ZUMBA_REF.moves) {
     const def = POSES[key];

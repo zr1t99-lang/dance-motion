@@ -127,3 +127,17 @@ Applies to Dance Copy and Dance Control (same scorer). Similarity thresholds: PE
 
 ## Official 3D dancer (GLB, build glb1)
 `assets/char/dancer.glb` (Meshy "Starlight Streetwear", Mixamo skeleton, one skinned mesh, 3 x 2048 px textures, 15 MB) is now the character for the coaches (Dance Copy) and the player (Dance Copy, Dance Control, Motion Mirror), loaded with Three.js `GLTFLoader` (`src/glbDancer.ts`). The file contains only two animation clips, **Running** and **Walking**; it has no dance clip, so none is played. Instead the bones are posed every frame: the coaches from the choreography's reference skeleton, the player from the MediaPipe skeleton (same retargeting as before: only bone directions are copied, so proportions, face, hair, jacket, pants and sneakers stay the model's own; fingers are never touched; feet stay flat and on the floor). If the GLB cannot be loaded the previous 2D cut-out character is used. Not done: floor reflection of the 3D figures; outfit / photo customisation (her look is fixed). `THREE_DIR=<three.js r170 checkout> python3 tests/e2e/e2e-glb.py` renders the real model in headless Chrome (software WebGL).
+
+## Real choreography from video (Dance Control · Soda Pop, private test)
+
+The Zumba reference is no longer matched by eye. The lead dancer in the first 60 s of the supplied video was **pose-tracked**
+(MediaPipe BlazePose landmark model run offline; a mask-based ROI follows the dancer) and converted into game poses:
+
+- 8 limb angles per frame from the world landmarks (image-plane angles), `hipShift` from the dancer's sideways travel,
+  `bend` from the hip-to-ankle extent calibrated on the dancer's own standing height.
+- Averaged into **half-beat keyframes** (126 BPM) in `src/songs/zumbaTrack.ts` (angles only - no video frames, no audio).
+  Both the dancer's bones and the scoring read the same data. Scored on whole beats where tracking confidence is high,
+  and only if the pose is clearly different from standing (otherwise standing still would earn KEEP).
+- Honest limits: only the lead dancer, 2D angles (no depth); close-ups cut the legs off, so leg terms are switched off there;
+  black cutaways (27-29.3 s, 42-43.6 s) have no data; about 35 of 185 keyframes are scored. Not verified on a real phone.
+- The hand-matched list is kept as `buildZumbaMovesByEye()` for comparison only.
