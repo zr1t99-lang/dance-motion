@@ -142,45 +142,80 @@ test("player copies the instructor perfectly (with 0.15 s lag) -> all moves PERF
   console.log(`        score ${sc.score}, accuracy ${sc.finalAccuracy.toFixed(1)}%`);
 });
 
-test("late by 0.5 s (inside tolerance) still scores, but lower than on-time", () => {
+test("late by 0.5 s -> no meaningful penalty (same judgments, accuracy within 3 points)", () => {
   const on = simulate((t) => asCameraPose(choreo.poseAt(Math.max(0, t)), {}), { latency: 0 });
   const late = simulate((t) => asCameraPose(choreo.poseAt(Math.max(0, t)), {}), { latency: 0.5 });
-  assert.ok(late.sc.finalAccuracy < on.sc.finalAccuracy);
-  assert.ok(late.sc.finalAccuracy > 50);
+  assert.ok(on.sc.finalAccuracy - late.sc.finalAccuracy < 3, `${on.sc.finalAccuracy} vs ${late.sc.finalAccuracy}`);
+  assert.equal(late.sc.counts.PERFECT, on.sc.counts.PERFECT);
+  assert.equal(late.sc.counts.MISS, 0);
   console.log(`        on-time ${on.sc.finalAccuracy.toFixed(1)}%  vs 0.5 s late ${late.sc.finalAccuracy.toFixed(1)}%`);
 });
 
-test("late by 1.5 s (outside the tolerance window) is penalised heavily", () => {
-  const late = simulate((t) => asCameraPose(choreo.poseAt(Math.max(0, t)), {}), { latency: 1.5 });
-  assert.ok(late.sc.counts.PERFECT < 4, JSON.stringify(late.sc.counts));
+test("late by 1.0 s and by 1.9 s (inside the 2 s grace) -> every move accepted, combo never broken", () => {
+  for (const latency of [1.0, 1.9]) {
+    const late = simulate((t) => asCameraPose(choreo.poseAt(Math.max(0, t)), {}), { latency });
+    assert.equal(late.sc.counts.MISS, 0, `${latency}: ${JSON.stringify(late.sc.counts)}`);
+    assert.equal(late.sc.maxCombo, 9);
+    assert.ok(late.sc.counts.PERFECT + late.sc.counts.GREAT + late.sc.counts.GOOD >= 8, JSON.stringify(late.sc.counts));
+    console.log(`        ${latency} s late: ${JSON.stringify(late.sc.counts)} accuracy ${late.sc.finalAccuracy.toFixed(1)}%`);
+  }
 });
 
-test("player NOT DETECTED the whole time -> zero points, all MISS, accuracy 0", () => {
+test("late by 2.6 s (well past the grace period) -> the moves are missed", () => {
+  const late = simulate((t) => asCameraPose(choreo.poseAt(Math.max(0, t)), {}), { latency: 2.6 });
+  assert.ok(late.sc.counts.MISS >= 6, JSON.stringify(late.sc.counts));
+});
+
+test("MISS is never shown before the grace period is over", () => {
+  const sc = new ChallengeScorer(choreo, DEFAULT_SCORING);
+  const f0 = computeFeatures(asCameraPose(buildRefPose(NEUTRAL), {}), 16 / 9);
+  const first = scored[0];
+  for (let t = -3; t <= first.at + 1.95; t += 1 / 30) {
+    sc.pushFrame(t, f0);
+    const ev = sc.tick(t);
+    assert.equal(ev.filter((e) => e.index === 0).length, 0, `judged at ${t.toFixed(2)}`);
+  }
+  let missAt = null;
+  for (let t = first.at + 1.95; t <= first.at + 2.3; t += 1 / 30) {
+    sc.pushFrame(t, f0);
+    for (const e of sc.tick(t)) if (e.index === 0) missAt = t - first.at;
+  }
+  assert.ok(missAt !== null && missAt > 2.0, `MISS at ${missAt}`);
+  assert.equal(sc.results[0].judgment === "MISS" || sc.results[0].judgment === null, true);
+});
+
+test("player NOT DETECTED the whole time -> no points, but NO MISS either (moves skipped)", () => {
   const { sc, events } = simulate(() => null);
-  assert.equal(events.length, 9);
-  assert.equal(sc.counts.MISS, 9);
+  assert.equal(events.length, 0);
+  assert.equal(sc.counts.MISS, 0);
+  assert.equal(sc.skippedCount, 9);
   assert.equal(sc.score, 0);
-  assert.equal(sc.finalAccuracy, 0);
 });
 
-test("landmarks present but invisible (visibility 0.05) -> zero points", () => {
+test("landmarks present but invisible (visibility 0.05) -> zero points, no MISS", () => {
   const { sc } = simulate((t) => asCameraPose(choreo.poseAt(Math.max(0, t)), { vis: 0.05 }));
   assert.equal(sc.score, 0);
-  assert.equal(sc.counts.MISS, 9);
+  assert.equal(sc.counts.MISS, 0);
 });
 
-test("tracking lost for part of the routine -> only those moves are lost", () => {
-  const { sc, events } = simulate((t) => (t > 10 && t < 17 ? null : asCameraPose(choreo.poseAt(Math.max(0, t)), {})));
-  const missed = events.filter((e) => e.judgment === "MISS").map((e) => e.move.id);
-  console.log("        missed while hidden:", missed.join(", "));
-  assert.deepEqual(missed.sort(), ["step-left", "step-right"]); // bend-knees window opens at 17.3 s, after tracking returned at 17 s
-  assert.equal(sc.combo >= 0, true);
+test("tracking lost for 7 s -> the moves inside the gap are skipped (combo kept), the rest are judged", () => {
+  const { sc } = simulate((t) => (t > 10 && t < 17 ? null : asCameraPose(choreo.poseAt(Math.max(0, t)), {})));
+  console.log("        counts", JSON.stringify(sc.counts), "skipped", sc.skippedCount, "maxCombo", sc.maxCombo);
+  assert.equal(sc.counts.MISS, 0);
+  assert.ok(sc.skippedCount >= 1);
 });
 
-test("player stands still in neutral pose -> no PERFECT/GREAT anywhere", () => {
+test("a short tracking drop (0.6 s) during a move does not turn it into a MISS", () => {
+  const { sc } = simulate((t) => (t > 4.0 && t < 4.6 ? null : asCameraPose(choreo.poseAt(Math.max(0, t)), {})));
+  assert.equal(sc.counts.MISS, 0);
+  assert.equal(sc.maxCombo, 9);
+});
+
+test("player does nothing at all (stands in neutral, tracked) -> MISS only after the grace period, never PERFECT/GREAT", () => {
   const { sc } = simulate(() => asCameraPose(buildRefPose(NEUTRAL), {}));
   console.log(`        counts ${JSON.stringify(sc.counts)}, accuracy ${sc.finalAccuracy.toFixed(1)}%`);
   assert.equal(sc.counts.PERFECT + sc.counts.GREAT, 0);
+  assert.ok(sc.counts.MISS >= 6, JSON.stringify(sc.counts));
 });
 
 test("scoring is deterministic (two identical runs -> identical results)", () => {

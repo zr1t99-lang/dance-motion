@@ -58,7 +58,7 @@ const AR: Record<string, string> = {
   "You": "أنتِ",
   // HUD / toolbar
   "SCORE": "النقاط", "Accuracy": "الدقة", "Combo": "الكومبو", "Coming up": "الحركة الجاية",
-  "PERFECT": "ممتاز", "GREAT": "رائع", "GOOD": "جيد", "MISS": "فاتت",
+  "PERFECT": "ممتاز", "GREAT": "رائع", "GOOD": "جيد", "MISS": "فاتت", "KEEP": "كمّلي", "PERFECT!": "ممتاز!", "AMAZING!": "مذهل!", "GREAT!": "رائع!", "GOOD!": "جيد!", "NICE MOVE!": "حركة حلوة!", "KEEP GOING!": "كمّلي!", "YOU GOT THIS!": "تقدرين!",
   "YOU ▼": "أنتِ ▼", "COPY ME ▼": "قلّديني ▼",
   "❚❚ Pause": "❚❚ إيقاف مؤقت", "▶ Play": "▶ تشغيل", "↻ Restart": "↻ من البداية", "⟲ Camera": "⟲ الكاميرا", "Debug": "Debug", "✕ Exit": "✕ خروج",
   "Mirror: On": "المرآة: تشغيل", "Mirror: Off": "المرآة: إيقاف",

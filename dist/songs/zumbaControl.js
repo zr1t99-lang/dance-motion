@@ -54,9 +54,6 @@ export const CONTROL_SCORING = {
     timingTolerance: 0.6,
     timingOffset: 0.2,
     gateStrength: 0.2,
-    timingCore: 0.5,
-    timingEdge: 0.8,
-    earlyPerfect: true,
 };
 export const beatTime = (b) => ZUMBA_REF.firstBeatSec + (b * 60) / ZUMBA_REF.bpm;
 export function buildZumbaMoves() {

@@ -32,7 +32,7 @@ test("no move is placed inside the black cutaways or the pre-dance intro", () =>
 });
 test("all moves finish inside the 60 s clip with the timing window", () => {
   const last = ch.scoredMoves.at(-1).at;
-  assert.ok(last + def.scoring.timingTolerance + def.scoring.timingOffset < 60.5, String(last));
+  assert.ok(last + def.scoring.graceAfter < 60.5, String(last));
 });
 test("audio: file-based, only first 60 s, no audio bundled in the repo", () => {
   assert.equal(def.audio, "file");
@@ -45,7 +45,7 @@ test("audio: file-based, only first 60 s, no audio bundled in the repo", () => {
   }
 });
 
-const feat = (spec) => computeFeatures(buildRefPose(spec), 4 / 3);
+const feat = (spec) => computeFeatures(buildRefPose(spec).map((l) => ({ x: (l.x * 0.18) / (4 / 3) + 0.5, y: l.y * 0.18 + 0.45, z: 0, visibility: l.visibility ? 0.95 : 0 })), 4 / 3);
 function run(playerAt) {
   const sc = new ChallengeScorer(ch, def.scoring);
   const base = feat(NEUTRAL);
@@ -72,9 +72,13 @@ test("player does one wrong pose all the time -> far below the right player", ()
   const wrong = run(() => ({ ...NEUTRAL, rUpper: 160, rFore: 170, lUpper: 160, lFore: 170 }));
   assert.ok(wrong.score < right.score * 0.35, `${wrong.score} vs ${right.score}`);
 });
-test("right moves but 1.2 s late -> clearly penalised", () => {
-  const right = run((t) => ch.specAt(Math.max(0, t - 0.15)));
+test("right moves but 1.2 s late -> still accepted (2 s grace), nothing missed", () => {
   const late = run((t) => ch.specAt(Math.max(0, t - 1.2)));
-  assert.ok(late.score < right.score * 0.6, `${late.score} vs ${right.score}`);
+  assert.equal(late.counts.MISS, 0, JSON.stringify(late.counts));
+  assert.ok(late.finalAccuracy > 85, "acc " + late.finalAccuracy);
+});
+test("right moves but 2.6 s late -> the grace period is over, moves are missed", () => {
+  const late = run((t) => ch.specAt(Math.max(0, t - 2.6)));
+  assert.ok(late.counts.MISS >= 8, JSON.stringify(late.counts));
 });
 console.log(`\n${pass} control tests passed`);

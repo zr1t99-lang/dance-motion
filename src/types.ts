@@ -36,7 +36,7 @@ export const POSE_CONNECTIONS: [number, number][] = [
   [23, 25], [25, 27], [24, 26], [26, 28],
 ];
 
-export type Judgment = "PERFECT" | "GREAT" | "GOOD" | "MISS";
+export type Judgment = "PERFECT" | "GREAT" | "GOOD" | "KEEP" | "MISS";
 export type Facing = "user" | "environment";
 
 export function emptyPose(): Pose {

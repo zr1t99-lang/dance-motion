@@ -44,16 +44,12 @@ test("56 scored moves, one every 4 beats (1.9 s), each held through the next cou
     assert.ok(Math.abs(beat - Math.round(beat)) < 1e-9 && Math.round(beat) % 2 === 1, `${m.id} at beat ${beat}`);
   }
 });
-test("scored moves 1.875 s apart; scorer windows never overlap", () => {
+test("scored moves 1.875 s apart; 2 s grace window; windows overlap but each move registers once", () => {
   const c = new Choreography(moves, song.choreo);
   const sc = new ChallengeScorer(c, song.scoring);
   for (let i = 1; i < scored.length; i++) assert.ok(Math.abs(scored[i].at - scored[i - 1].at - 4 * BEAT) < 1e-9);
-  for (let i = 1; i < scored.length; i++) {
-    const aEnd = scored[i - 1].at + sc.cfg.timingOffset + sc.windowOf(i - 1);
-    const bStart = scored[i].at + sc.cfg.timingOffset - sc.windowOf(i);
-    assert.ok(aEnd <= bStart + 1e-9, `window ${i}`);
-  }
-  assert.ok(Math.abs(sc.windowOf(5) - 0.84375) < 1e-9, String(sc.windowOf(5))); // 0.45 x 1.875 s spacing
+  assert.equal(sc.cfg.graceAfter, 2);
+  assert.ok(sc.cfg.perfect === 0.95 && sc.cfg.great === 0.85 && sc.cfg.good === 0.7 && sc.cfg.keep === 0.5);
 });
 test("keyframe poses are reached exactly on the beat; decoration (bounce/sway) is zero on beats", () => {
   const c = new Choreography(moves, song.choreo);
@@ -151,37 +147,47 @@ test("player copies every move with a realistic 0.15 s lag -> (nearly) all PERFE
   assert.equal(sc.maxCombo, 56);
   assert.ok(sc.finalAccuracy > 85);
 });
-test("FOLLOW-THE-LEADER: a player who copies each move 0.6 / 1.0 / 1.3 s AFTER the dancers still scores PERFECT on (nearly) every move", () => {
-  for (const lag of [0.6, 1.0, 1.3]) {
+test("FOLLOW-THE-LEADER: a player who copies each move 0.6 / 1.0 / 1.3 / 1.8 s AFTER the dancers is accepted on every move", () => {
+  for (const lag of [0.6, 1.0, 1.3, 1.8]) {
     const { sc } = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - lag))));
-    assert.ok(sc.counts.PERFECT >= 50 && sc.counts.MISS <= 2, `lag ${lag}: ${JSON.stringify(sc.counts)}`);
+    assert.ok(sc.counts.PERFECT + sc.counts.GREAT >= 54 && sc.counts.MISS <= 1, `lag ${lag}: ${JSON.stringify(sc.counts)}`);
+    assert.ok(sc.maxCombo >= 54, `lag ${lag}: combo ${sc.maxCombo}`);
   }
 });
-test("timing still counts: a player 2.4 s behind (a whole move late) scores far lower", () => {
+test("a player 3 s behind (more than the 2 s grace) scores far lower", () => {
   const ok = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 0.9)))).sc;
-  const late = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 2.4)))).sc;
+  const late = run((c, t) => asCameraPose(c.poseAt(Math.max(0, t - 3.0)))).sc;
   assert.ok(late.score < ok.score * 0.5, `${ok.score} vs ${late.score}`);
+});
+test("an 80 %-ish sloppy copy (all joints 12 deg off) still earns GOOD or better on most moves, nothing is MISS", () => {
+  const { sc } = run((c, t) => {
+    const s = c.specAt(Math.max(0, t - 0.5));
+    const o = { ...s }; for (const k of ["rUpper", "rFore", "lUpper", "lFore", "rThigh", "rShin", "lThigh", "lShin"]) o[k] = s[k] + 12;
+    return asCameraPose(buildRefPose(o));
+  });
+  console.log("        sloppy copy:", JSON.stringify(sc.counts), `accuracy ${sc.finalAccuracy.toFixed(0)}%`);
+  assert.ok(sc.counts.MISS <= 2, JSON.stringify(sc.counts));
+  assert.ok(sc.counts.PERFECT + sc.counts.GREAT + sc.counts.GOOD >= 40);
 });
 test("standing still the whole song -> no credit for the moves that differ from neutral (no fake score)", () => {
   const { sc } = run(() => asCameraPose(buildRefPose(NEUTRAL)));
   const nonRest = sc.results.filter((r) => !/REST/.test(r.move.id));
   const credited = nonRest.filter((r) => r.judgment !== "MISS").length;
+  console.log(`        ${credited}/${nonRest.length} credited while standing still`);
   assert.ok(credited / nonRest.length < 0.1, `${credited}/${nonRest.length} credited`);
 });
-test("tracking lost for 12 s: those moves are MISS, the dance goes on and scoring resumes afterwards, combo restarts", () => {
+test("tracking lost for 12 s: those moves are SKIPPED (no MISS, combo kept), scoring resumes afterwards", () => {
   const { sc, events } = run((c, t) => (t > 30 && t < 42 ? null : asCameraPose(c.poseAt(Math.max(0, t - 0.15)))));
-  const missed = events.filter((e) => e.judgment === "MISS");
-  assert.ok(missed.length >= 5 && missed.length <= 8, String(missed.length));
+  assert.equal(sc.counts.MISS, 0);
+  assert.ok(sc.skippedCount >= 4 && sc.skippedCount <= 8, String(sc.skippedCount));
   assert.ok(events.at(-1).judgment === "PERFECT");
-  assert.ok(sc.maxCombo > 25);
-  assert.ok(sc.combo > 15 && sc.combo < 56, String(sc.combo));
-  assert.ok(missed.every((e) => e.points === 0));
+  assert.ok(sc.maxCombo >= 50, String(sc.maxCombo));
 });
-test("no camera at all -> 0 points, every move MISS, but the run still completes", () => {
+test("no camera at all -> 0 points, nothing judged, the run still completes", () => {
   const { sc, events } = run(() => null);
   assert.equal(sc.score, 0);
-  assert.equal(events.length, 56);
-  assert.equal(sc.counts.MISS, 56);
+  assert.equal(events.length, 0);
+  assert.equal(sc.skippedCount, 56);
 });
 
 console.log(`\n${pass} song tests passed`);

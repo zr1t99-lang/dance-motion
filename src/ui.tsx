@@ -274,14 +274,6 @@ export function SettingsPanel(props: {
             <Seg value={s.overlay} options={[{ v: true, label: tr("On") }, { v: false, label: tr("Off") }]} onChange={(v) => set({ overlay: v })} />
           </div>
           <div className="row">
-            <label>{tr("Timing tolerance")}</label>
-            <div className="stepper">
-              <button onClick={() => set({ tolerance: Math.max(0.3, Math.round((s.tolerance - 0.1) * 10) / 10) })}>−</button>
-              <span>±{s.tolerance.toFixed(1)} s</span>
-              <button onClick={() => set({ tolerance: Math.min(1.2, Math.round((s.tolerance + 0.1) * 10) / 10) })}>+</button>
-            </div>
-          </div>
-          <div className="row">
             <label>{tr("Audio offset")}</label>
             <div className="stepper">
               <button onClick={() => set({ audioOffsetMs: Math.max(-300, s.audioOffsetMs - 20) })}>−</button>

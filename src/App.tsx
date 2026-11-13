@@ -112,7 +112,7 @@ function Menu(props: { lang: "en" | "ar"; onLang: () => void; onStart: (m: "mirr
         <span>DANCE</span>
         <span className="alt">MOTION</span>
       </div>
-      <div className="menu-sub">{tr("Real camera body-tracking · prototype · ")}<span dir="ltr">build ar1</span></div>
+      <div className="menu-sub">{tr("Real camera body-tracking · prototype · ")}<span dir="ltr">build fun1</span></div>
       {insecure && (
         <div className="warn">
           {tr("This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README).")}
@@ -334,9 +334,9 @@ interface Hud {
   stars: number;
   nextIdx: number;
   counts: Record<Judgment, number>;
-  last: { j: Judgment; key: number } | null;
+  last: { j: Judgment; text: string; key: number } | null;
 }
-const HUD0: Hud = { t: 0, score: 0, combo: 0, acc: 0, stars: 0, nextIdx: 0, counts: { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 }, last: null };
+const HUD0: Hud = { t: 0, score: 0, combo: 0, acc: 0, stars: 0, nextIdx: 0, counts: { PERFECT: 0, GREAT: 0, GOOD: 0, KEEP: 0, MISS: 0 }, last: null };
 
 interface Results {
   score: number;
@@ -488,7 +488,7 @@ function ChallengeScreen(props: {
   };
 
   const start = () => {
-    scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: song.audio === "beat" ? settings.tolerance : control ? song.scoring.timingTolerance : Math.max(song.scoring.timingTolerance, settings.tolerance) });
+    scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: song.scoring.timingTolerance });
     startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: audio is scheduled slightly ahead
     lastJudge.current = null;
     keyRef.current = 0;
@@ -596,7 +596,7 @@ function ChallengeScreen(props: {
       }
       const sc = scorerRef.current!;
       const events = sc.tick(t);
-      for (const ev of events) lastJudge.current = { j: ev.judgment, key: ++keyRef.current };
+      for (const ev of events) lastJudge.current = { j: ev.judgment, text: ev.text, key: ++keyRef.current };
       if (events.length || now - lastHudAt.current > 66) {
         lastHudAt.current = now;
         setHud({
@@ -630,7 +630,7 @@ function ChallengeScreen(props: {
   const beatNow = hud.t / song.beatSec;
   const section = song.sections.find((x) => beatNow >= x.startBeat && beatNow < x.startBeat + x.beats)?.name ?? "";
   const lyric = playing || phase === "countdown" ? currentLyric(song, beatNow) : null;
-  const judgeColor: Record<Judgment, string> = { PERFECT: "perfect", GREAT: "great", GOOD: "good", MISS: "miss" };
+  const judgeColor: Record<Judgment, string> = { PERFECT: "perfect", GREAT: "great", GOOD: "good", KEEP: "keep", MISS: "miss" };
 
   return (
     <>
@@ -674,9 +674,9 @@ function ChallengeScreen(props: {
         </div>
 
         {/* left: judgment popup + ladder */}
-        {hud.last && <div key={hud.last.key} className={"popup " + judgeColor[hud.last.j]}>{tr(hud.last.j)}{hud.last.j !== "MISS" ? "!" : ""}</div>}
+        {hud.last && <div key={hud.last.key} className={"popup " + judgeColor[hud.last.j]}>{tr(hud.last.text)}</div>}
         <div className="ladder">
-          {(["PERFECT", "GREAT", "GOOD", "MISS"] as Judgment[]).map((j) => (
+          {(["PERFECT", "GREAT", "GOOD", "KEEP", "MISS"] as Judgment[]).map((j) => (
             <div key={j} className={"lad " + judgeColor[j] + (hud.last?.j === j ? " on" : "")}>
               {tr(j)}<b>{hud.counts[j]}</b>
             </div>
@@ -847,7 +847,7 @@ function ChallengeScreen(props: {
                   <>
                     <p><b>طريقة اللعب:</b> <b>الراقصتين على الجنبين</b> هم المدربات: قلّديهم. الشخصية <b>اللي في النص هي إنتي</b> (تتبع حركتك من الكاميرا). الأشكال الخضراء الصغيرة على اليمين مجرد معاينة للحركة <i>الجاية</i>.</p>
                     <p>قفي في مكان تظهرين فيه <b>كاملة</b> للكاميرا. وقت العد التنازلي قفي مرتاحة وذراعيك على جنبك: اللعبة تسجّل وقفتك العادية عشان طولك وحجمك وموضعك ما تأثر على النقاط.</p>
-                    <p>قلّدي الراقص مثل المرآة: ذراعك <b>اليمين</b> هي اللي على <b>يمين الشاشة</b>. كل حركة تتقيّم حسب زوايا المفاصل والمواضع والتوقيت. {song.audio === "synth" ? "تقلّدين بعد الراقصين: عندك حوالي 1.7 ثانية من لحظة ما يسوون الحركة، فما يلزم تكونين معهم بنفس الوقت." : `نافذة التوقيت ±${settings.tolerance.toFixed(1)} ثانية.`}</p>
+                    <p>قلّدي الراقص مثل المرآة: ذراعك <b>اليمين</b> هي اللي على <b>يمين الشاشة</b>. كل حركة تتقيّم حسب زوايا المفاصل والمواضع والتوقيت. {song.audio === "synth" ? "تقلّدين بعد الراقصين: عندك لين ثانيتين بعد ما يسوون الحركة، والحركة الصحيحة المتأخرة تنحسب. ما يلزم تكونين دقيقة: حتى النسخة التقريبية تاخذ نقاط." : "الحركة الصحيحة تنحسب حتى لو تأخرتي ثانيتين، والتقريبية تاخذ نقاط."}</p>
                   </>
                 )
               ) : (
@@ -858,7 +858,7 @@ function ChallengeScreen(props: {
               <>
               <p><b>How to play:</b> the <b>two dancers on the sides</b> are the instructors: copy them. The character in the <b>middle is you</b> (it follows your camera). The small green figures at the right are only a preview of the <i>next</i> move.</p>
               <p>Stand where the camera sees your <b>whole body</b>. During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you.</p>
-              <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing. {song.audio === "synth" ? "You copy AFTER the dancers: you have about 1.7 s from the moment they strike a pose, so no need to be at the same time as them." : `Timing window ±${settings.tolerance.toFixed(1)} s.`}</p>
+              <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing. {song.audio === "synth" ? "You copy AFTER the dancers: you have up to 2 s after they strike a pose, and a late but correct move still counts. You don't need to be exact: an approximate version of the move scores too." : "A correct move still counts up to 2 s late, and an approximate version scores too."}</p>
               </>
               )}
               </>
@@ -894,7 +894,7 @@ function ChallengeScreen(props: {
                 <div><small>MAX COMBO</small><b>x{results.maxCombo}</b></div>
               </div>
               <div className="res-counts">
-                {(["PERFECT", "GREAT", "GOOD", "MISS"] as Judgment[]).map((j) => (
+                {(["PERFECT", "GREAT", "GOOD", "KEEP", "MISS"] as Judgment[]).map((j) => (
                   <span key={j} className={judgeColor[j]}>{j} {results.counts[j]}</span>
                 ))}
               </div>

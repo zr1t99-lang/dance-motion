@@ -231,7 +231,7 @@ def main():
 
             ctx, page, data = play("undetected", label="11-undetected")
             txt = data["text"]
-            check("player NOT detected for the whole routine -> 0 score, all MISS (in the real UI)", "MISS 9" in txt and "SCORE\n0" in txt, txt.replace("\n", " ")[:160])
+            check("player NOT detected for the whole routine -> 0 score and NO MISS (tracking loss is not a missed move)", "MISS 0" in txt and "SCORE\n0" in txt, txt.replace("\n", " ")[:160])
             ctx.close()
 
             ctx, page, data = play("neutral", label="12-neutral")
