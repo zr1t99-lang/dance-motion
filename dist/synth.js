@@ -274,6 +274,46 @@ export function renderSong(score, sampleRate = 32000) {
             }
         }
     });
+    // ------------------------------------------------------------------ 808 sub bass (trap): sine + pitch drop, tanh-saturated so the harmonics carry on phone speakers
+    for (const nt of score.sub ?? []) {
+        const n0 = at(nt.beat), vel = nt.vel ?? 1;
+        const hold = nt.dur * beatSec, len = Math.floor((hold + 0.12) * sr);
+        const f = mtof(nt.midi);
+        let ph = 0;
+        for (let i = 0; i < len; i++) {
+            const t = i / sr;
+            ph += (TWO_PI * f * (1 + 0.9 * Math.exp(-t / 0.018))) / sr;
+            const env = Math.min(1, t / 0.003) * (t < hold ? Math.exp(-t / (hold * 1.1 + 0.15)) : Math.exp(-hold / (hold * 1.1 + 0.15)) * Math.max(0, 1 - (t - hold) / 0.12));
+            const v = Math.tanh(Math.sin(ph) * 1.8) * 0.17 * env * vel * duckGain(n0 + i, 0.25);
+            put(n0 + i, v, 0);
+        }
+    }
+    // ------------------------------------------------------------------ group shouts ("hey!"): two formants on a saw, quick pitch fall
+    (score.shout ?? []).forEach((nt, idx) => {
+        const n0 = at(nt.beat), vel = nt.vel ?? 1, len = Math.floor(Math.max(0.16, nt.dur * beatSec) * sr);
+        const rng = new Rng(11000 + idx);
+        for (const [det, pan] of [[1, -0.35], [1.012, 0.35]]) {
+            let ph = 0, a1 = 0, b1 = 0, a2 = 0, b2 = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / sr;
+                const f = mtof(nt.midi) * det * (1 + 0.1 * Math.exp(-t / 0.05));
+                const dt = f / sr;
+                const x = saw(ph, dt) * 0.8 + rng.next() * 0.25;
+                ph += dt;
+                if (ph >= 1)
+                    ph -= 1;
+                // crude band-passes around ~700 Hz and ~1800 Hz ("eh" vowel): difference of two one-pole low-passes
+                const l1 = lp(900), l2 = lp(520), l3 = lp(2300), l4 = lp(1400);
+                a1 += l1 * (x - a1);
+                b1 += l2 * (x - b1);
+                a2 += l3 * (x - a2);
+                b2 += l4 * (x - b2);
+                const y = (a1 - b1) * 1.6 + (a2 - b2) * 1.1;
+                const env = Math.min(1, t / 0.006) * Math.exp(-t / 0.09);
+                put(n0 + i, y * env * 0.5 * vel, pan);
+            }
+        }
+    });
     // ------------------------------------------------------------------ master: soft clip + normalise
     const drive = 1.25;
     const norm = Math.tanh(drive);

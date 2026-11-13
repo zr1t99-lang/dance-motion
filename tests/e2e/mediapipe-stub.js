@@ -4,10 +4,13 @@
 import { buildRefPose, NEUTRAL, Choreography } from "/dist/choreography.js";
 import { buildSunshineShake } from "/dist/songs/sunshineShake.js";
 import { buildZumbaControl } from "/dist/songs/zumbaControl.js";
+import { buildNeonCrush } from "/dist/songs/neonCrush.js";
 
 const choreo = new Choreography();
 const songDef = buildSunshineShake();
 const songChoreo = new Choreography(songDef.moves, songDef.choreo);
+const neonDef = buildNeonCrush();
+const neonChoreo = new Choreography(neonDef.moves, neonDef.choreo);
 const ctlDef = buildZumbaControl();
 const ctlChoreo = new Choreography(ctlDef.moves, ctlDef.choreo);
 const empty = () => Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }));
@@ -39,7 +42,7 @@ export const PoseLandmarker = {
         else if (s.mode === "fixed") spec = { ...NEUTRAL, ...s.pose };
         else {
           const t = (now - s.t0) / 1000 - (s.lag || 0); // follow the instructor with a small lag
-          spec = (s.song === 'control' ? ctlChoreo : s.song ? songChoreo : choreo).specAt(Math.max(0, t));
+          spec = (s.song === 'control' ? ctlChoreo : s.song === 'neon' ? neonChoreo : s.song ? songChoreo : choreo).specAt(Math.max(0, t));
         }
         const ref = buildRefPose(spec);
         const noise = s.noise || 0;

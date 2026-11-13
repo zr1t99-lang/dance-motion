@@ -10,6 +10,7 @@ import { COACH_SETS, cartoonFace, OUTFITS, loadCoachSet, outfitLook, saveCoachSe
 import { HAIR_COLORS, captureCharacter, faceCanvas, loadCharacter, saveCharacter } from "./character.js";
 import { MusicPlayer } from "./songPlayer.js";
 import { buildSunshineShake } from "./songs/sunshineShake.js";
+import { buildNeonCrush } from "./songs/neonCrush.js";
 import { buildTestRoutine } from "./songs/testRoutine.js";
 import { buildZumbaControl } from "./songs/zumbaControl.js";
 import { Choreography, buildRefPose, refComparable } from "./choreography.js";
@@ -216,7 +217,7 @@ const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padSt
 function ChallengeScreen(props) {
     const { engine, settings } = props;
     const control = !!props.control;
-    const songs = useMemo(() => (control ? [buildZumbaControl()] : [buildSunshineShake(), buildTestRoutine()]), [control]);
+    const songs = useMemo(() => (control ? [buildZumbaControl()] : [buildNeonCrush(), buildSunshineShake(), buildTestRoutine()]), [control]);
     const [songId, setSongId] = useState(songs[0].id);
     const song = songs.find((x) => x.id === songId) ?? songs[0];
     const choreo = useMemo(() => new Choreography(song.moves, song.choreo), [song]);

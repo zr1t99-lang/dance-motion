@@ -1,19 +1,22 @@
 import { BeatAudio } from "./audio.js";
 import { renderSong } from "./synth.js";
-import { buildSunshineScore } from "./songs/sunshineScore.js";
-let rendered = null;
-let renderPromise = null;
-/** Render (once) the instrumental in a Web Worker; falls back to the main thread if workers are unavailable. */
-export function prepareInstrumental(sampleRate = 32000) {
-    if (rendered)
-        return Promise.resolve(rendered);
-    if (renderPromise)
-        return renderPromise;
-    renderPromise = new Promise((resolve, reject) => {
+import { scoreFor } from "./songs/scores.js";
+const renders = new Map();
+const renderPromises = new Map();
+/** Render (once per song) the instrumental in a Web Worker; falls back to the main thread if workers are unavailable. */
+export function prepareInstrumental(id = "sunshine-shake", sampleRate = 32000) {
+    const have = renders.get(id);
+    if (have)
+        return Promise.resolve(have);
+    const pending = renderPromises.get(id);
+    if (pending)
+        return pending;
+    const p = new Promise((resolve, reject) => {
         const mainThread = () => {
             try {
-                rendered = renderSong(buildSunshineScore(), sampleRate);
-                resolve(rendered);
+                const r = renderSong(scoreFor(id), sampleRate);
+                renders.set(id, r);
+                resolve(r);
             }
             catch (e) {
                 reject(e);
@@ -24,8 +27,9 @@ export function prepareInstrumental(sampleRate = 32000) {
             w.onmessage = (e) => {
                 w.terminate();
                 if (e.data.ok) {
-                    rendered = { left: e.data.left, right: e.data.right, sampleRate: e.data.sampleRate, seconds: e.data.seconds };
-                    resolve(rendered);
+                    const r = { left: e.data.left, right: e.data.right, sampleRate: e.data.sampleRate, seconds: e.data.seconds };
+                    renders.set(id, r);
+                    resolve(r);
                 }
                 else
                     mainThread();
@@ -34,16 +38,17 @@ export function prepareInstrumental(sampleRate = 32000) {
                 w.terminate();
                 mainThread();
             };
-            w.postMessage({ sampleRate });
+            w.postMessage({ sampleRate, id });
         }
         catch {
             mainThread();
         }
     }).catch((e) => {
-        renderPromise = null;
+        renderPromises.delete(id);
         throw e;
     });
-    return renderPromise;
+    renderPromises.set(id, p);
+    return p;
 }
 /**
  * Plays a song (or the practice click beat) and keeps it sample-aligned with the choreography clock:
@@ -205,7 +210,7 @@ export class MusicPlayer {
         }
         this.status = { instrumental: "rendering", vocals: false };
         try {
-            await prepareInstrumental();
+            await prepareInstrumental(def.id);
             this.status = { instrumental: "ready", vocals: false };
         }
         catch (e) {
@@ -242,6 +247,7 @@ export class MusicPlayer {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC)
             return;
+        const rendered = renders.get(def.id) ?? null;
         if (def.audio === "file" ? !this.fileBuf : !rendered)
             return;
         const ctx = def.audio === "file" ? new AC() : new AC({ sampleRate: rendered.sampleRate });
@@ -310,6 +316,7 @@ export class MusicPlayer {
             this.srcs.push(sr);
             return "Playing 6 s of your clip… if you hear nothing: raise the volume and switch off the silent mode.";
         }
+        const rendered = renders.get(def.id) ?? null;
         if (!rendered)
             return "The music is not ready yet.";
         const ctx = new AC({ sampleRate: rendered.sampleRate });

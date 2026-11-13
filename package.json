@@ -6,7 +6,7 @@
   "description": "Kinect-style mobile dance game prototype: real camera pose tracking (MediaPipe), 3D avatar (Three.js), React + TypeScript.",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node tests/run-tests.mjs && node tests/song-tests.mjs && node tests/control-tests.mjs && node tests/forgiving-tests.mjs",
+    "test": "tsc -p tsconfig.json && node tests/run-tests.mjs && node tests/song-tests.mjs && node tests/control-tests.mjs && node tests/forgiving-tests.mjs && node tests/neon-tests.mjs",
     "serve": "node serve.mjs"
   }
 }

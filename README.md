@@ -156,3 +156,11 @@ GLB pelvis is smoothed (1.2 cm dead band). Tested with unit tests and `tests/e2e
 Not verified: a real camera's noise, a real phone. A real jump is not shown in the air (the character crouches/stays grounded instead).
 The player's head is also steady: it always faces the screen like the coaches' heads (the nose/ears never turn it left/right; verified with a
 control experiment in `tests/e2e/e2e-ground.py`: lock off -> the same movement turns the head 42°, lock on -> 0°).
+
+## Neon Crush: an original K-pop-style song and dance (Dance Copy)
+New first song in Dance Copy: **Neon Crush**, 120 BPM, 2:00, composed for this game (C minor, trap-style drums + 808, chant hook, group "hey!" shouts, synthesised in
+the page by `src/synth.ts`, so there are no rights issues and no audio file). The dance (`src/songs/neonCrush.ts`) is original too: modern attitude moves
+(hands on hips, crown, crossed arms, sharp points, power stance, lunges, step sweeps), a move every 4 beats in verses and every 2 beats in the choruses,
+three different choruses, a dance break and a bigger final chorus; 86 scored moves. Tested: `tests/neon-tests.mjs` (structure, beat grid, music render,
+dynamics, scoring with synthetic players: copying scores, standing still scores 0) and `tests/e2e/e2e-neon.py` (the full 2-minute run through the real UI/clock).
+Not verified: how it sounds to a human ear (only measured: loudness, balance, no clipping), and how fun the dance is.

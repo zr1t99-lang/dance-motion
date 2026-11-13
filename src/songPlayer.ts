@@ -1,6 +1,6 @@
 import { BeatAudio } from "./audio.js";
 import { renderSong, type Rendered } from "./synth.js";
-import { buildSunshineScore } from "./songs/sunshineScore.js";
+import { scoreFor } from "./songs/scores.js";
 import type { SongDef } from "./songs/types.js";
 
 export interface MusicStatus {
@@ -15,18 +15,20 @@ export interface MusicStatus {
   error?: string;
 }
 
-let rendered: Rendered | null = null;
-let renderPromise: Promise<Rendered> | null = null;
-
-/** Render (once) the instrumental in a Web Worker; falls back to the main thread if workers are unavailable. */
-export function prepareInstrumental(sampleRate = 32000): Promise<Rendered> {
-  if (rendered) return Promise.resolve(rendered);
-  if (renderPromise) return renderPromise;
-  renderPromise = new Promise<Rendered>((resolve, reject) => {
+const renders = new Map<string, Rendered>();
+const renderPromises = new Map<string, Promise<Rendered>>();
+/** Render (once per song) the instrumental in a Web Worker; falls back to the main thread if workers are unavailable. */
+export function prepareInstrumental(id = "sunshine-shake", sampleRate = 32000): Promise<Rendered> {
+  const have = renders.get(id);
+  if (have) return Promise.resolve(have);
+  const pending = renderPromises.get(id);
+  if (pending) return pending;
+  const p = new Promise<Rendered>((resolve, reject) => {
     const mainThread = () => {
       try {
-        rendered = renderSong(buildSunshineScore(), sampleRate);
-        resolve(rendered);
+        const r = renderSong(scoreFor(id), sampleRate);
+        renders.set(id, r);
+        resolve(r);
       } catch (e) {
         reject(e);
       }
@@ -36,23 +38,25 @@ export function prepareInstrumental(sampleRate = 32000): Promise<Rendered> {
       w.onmessage = (e: MessageEvent) => {
         w.terminate();
         if (e.data.ok) {
-          rendered = { left: e.data.left, right: e.data.right, sampleRate: e.data.sampleRate, seconds: e.data.seconds };
-          resolve(rendered);
+          const r = { left: e.data.left, right: e.data.right, sampleRate: e.data.sampleRate, seconds: e.data.seconds };
+          renders.set(id, r);
+          resolve(r);
         } else mainThread();
       };
       w.onerror = () => {
         w.terminate();
         mainThread();
       };
-      w.postMessage({ sampleRate });
+      w.postMessage({ sampleRate, id });
     } catch {
       mainThread();
     }
   }).catch((e) => {
-    renderPromise = null;
+    renderPromises.delete(id);
     throw e;
   });
-  return renderPromise;
+  renderPromises.set(id, p);
+  return p;
 }
 
 /**
@@ -201,7 +205,7 @@ export class MusicPlayer {
     }
     this.status = { instrumental: "rendering", vocals: false };
     try {
-      await prepareInstrumental();
+      await prepareInstrumental(def.id);
       this.status = { instrumental: "ready", vocals: false };
     } catch (e: any) {
       this.status = { instrumental: "error", vocals: false, error: String(e?.message ?? e) };
@@ -236,6 +240,7 @@ export class MusicPlayer {
     }
     const AC = window.AudioContext || (window as any).webkitAudioContext;
     if (!AC) return;
+    const rendered = renders.get(def.id) ?? null;
     if (def.audio === "file" ? !this.fileBuf : !rendered) return;
     const ctx: AudioContext = def.audio === "file" ? new AC() : new AC({ sampleRate: rendered!.sampleRate });
     this.ctx = ctx;
@@ -296,6 +301,7 @@ export class MusicPlayer {
       this.srcs.push(sr);
       return "Playing 6 s of your clip… if you hear nothing: raise the volume and switch off the silent mode.";
     }
+    const rendered = renders.get(def.id) ?? null;
     if (!rendered) return "The music is not ready yet.";
     const ctx: AudioContext = new AC({ sampleRate: rendered.sampleRate });
     this.ctx = ctx;
