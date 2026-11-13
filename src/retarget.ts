@@ -132,9 +132,9 @@ export class Retargeter {
         x = dx / l; y = dy / l; z = dz / l;
       }
     }
-    dst.x += (x - dst.x) * 0.5;
-    dst.y += (y - dst.y) * 0.5;
-    dst.z += (z - dst.z) * 0.5;
+    dst.x += (x - dst.x) * 0.3;
+    dst.y += (y - dst.y) * 0.3;
+    dst.z += (z - dst.z) * 0.3;
     unitInto(dst, dst.x, dst.y, dst.z, FWD);
   }
 }
@@ -152,42 +152,44 @@ interface ImgLm {
 }
 
 /**
- * Whole-body travel from the IMAGE landmarks: sideways steps and jumps.
- * Sideways distance is in metres assuming a 0.5 m torso; height comes from how far the lowest ankle
- * rises above a slowly-adapting "ground" reference (so walking toward/away from the camera isn't a jump).
+ * Whole-body sideways travel from the IMAGE landmarks. The character never leaves the floor: there is no
+ * "lift" (a foot rising in the image can be a step, a kick, a camera tilt or walking away - never a flight).
+ * Distance is in metres. The scale (metres per image height) comes from the torso's size in the image divided
+ * by its length in MediaPipe's metric world coordinates, both measured in the image plane, so leaning or
+ * bending forward does not change the scale and the character does not slide when the player bends.
  */
 export class Locomotion {
-  private ground: number | null = null;
   private lastT = -1;
-  lift = 0;
+  private scale: number | null = null; // metres per image-height unit (smoothed)
   x = 0;
 
   reset() {
-    this.ground = null;
     this.lastT = -1;
-    this.lift = 0;
+    this.scale = null;
     this.x = 0;
   }
 
-  update(p: ImgLm[], aspect: number, tSec: number): { x: number; lift: number } {
+  /** @param world optional MediaPipe world landmarks (metres) used only to calibrate the scale. */
+  update(p: ImgLm[], aspect: number, tSec: number, world?: ImgLm[] | null): { x: number } {
     const dt = this.lastT < 0 ? 0.033 : Math.min(0.2, Math.max(0.001, tSec - this.lastT));
     this.lastT = tSec;
     const shx = (p[L_SHOULDER].x + p[R_SHOULDER].x) / 2, shy = (p[L_SHOULDER].y + p[R_SHOULDER].y) / 2;
     const hpx = (p[L_HIP].x + p[R_HIP].x) / 2, hpy = (p[L_HIP].y + p[R_HIP].y) / 2;
     const torso = Math.hypot((shx - hpx) * aspect, shy - hpy);
-    if (!(torso > 0.02)) return { x: this.x, lift: this.lift };
-    this.x = ((hpx - 0.5) * aspect) / torso * RIG.torso;
-
-    const aok = p[L_ANKLE].visibility >= 0.5 && p[R_ANKLE].visibility >= 0.5;
-    if (aok) {
-      const ankleY = Math.max(p[L_ANKLE].y, p[R_ANKLE].y); // the supporting (lowest) foot
-      if (this.ground === null || ankleY > this.ground) this.ground = this.ground === null ? ankleY : this.ground + (ankleY - this.ground) * 0.6;
-      else this.ground += (ankleY - this.ground) * (1 - Math.exp(-dt / 0.8));
-      const raw = (this.ground - ankleY - 0.03 * torso) / torso * RIG.torso;
-      this.lift = Math.min(1.2, Math.max(0, raw));
-    } else {
-      this.lift *= 0.8;
+    if (!(torso > 0.02)) return { x: this.x };
+    let sc: number | null = null;
+    if (world && world[L_SHOULDER] && world[L_HIP]) {
+      const wx = (world[L_SHOULDER].x + world[R_SHOULDER].x - world[L_HIP].x - world[R_HIP].x) / 2;
+      const wy = (world[L_SHOULDER].y + world[R_SHOULDER].y - world[L_HIP].y - world[R_HIP].y) / 2;
+      const wl = Math.hypot(wx, wy); // the torso as the camera sees it, in metres
+      if (wl > 0.3 && torso > 0.08) sc = wl / torso;
     }
-    return { x: this.x, lift: this.lift };
+    if (sc === null && this.scale === null) sc = RIG.torso / torso; // first frames without usable world data: assume 0.5 m
+    if (sc !== null) {
+      sc = Math.min(Math.max(sc, 0.6), 6); // sane range: 0.6..6 m per image height
+      this.scale = this.scale === null ? sc : this.scale + (sc - this.scale) * (1 - Math.exp(-dt / 0.4));
+    }
+    this.x = (hpx - 0.5) * aspect * (this.scale as number);
+    return { x: this.x };
   }
 }

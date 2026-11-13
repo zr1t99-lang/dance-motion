@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { LM, POSE_LANDMARK_COUNT } from "./types.js";
 import { GROUND_Y, METERS_PER_UNIT } from "./choreography.js";
 import { Locomotion, Retargeter } from "./retarget.js";
+import { Stance } from "./stance.js";
 export const INSTRUCTOR_STYLE = {
     jacket: 0xff2fb4, pants: 0x2b1b92, skin: 0xf6cfe0, shoes: 0xffffff, glove: 0xf4ff4a, hair: 0x1d1047, rim: 0xff7bf2, shades: true,
 };
@@ -242,7 +243,7 @@ class Body {
         }
     }
     /** J: 33 scene-space joint positions (metres, y up, +z toward the viewer). */
-    layout(J, fe) {
+    layout(J, fe, _dt) {
         const p = this.parts;
         const { ex, ey, ez, tmp, tmp2, sh, hip, head } = this;
         sh.copy(J[LM.L_SHOULDER]).add(J[LM.R_SHOULDER]).multiplyScalar(0.5);
@@ -360,8 +361,7 @@ export class Avatar {
     lateral = 0;
     baseX = 0;
     latLimit = 1.8;
-    lift = 0;
-    liftTarget = 0;
+    stance = new Stance();
     seen = new Array(POSE_LANDMARK_COUNT).fill(false);
     yDown = true;
     retarget = new Retargeter();
@@ -485,9 +485,8 @@ export class Avatar {
             this.seen[i] = true;
         }
         if (img) {
-            const l = this.loco.update(img.pose, img.aspect, img.t);
-            this.lateral = Math.max(-this.latLimit, Math.min(this.latLimit, l.x * sx));
-            this.liftTarget = l.lift;
+            // where the player stands (sideways, metres); the planted-foot logic in apply() decides how the character follows
+            this.lateral = this.loco.update(img.pose, img.aspect, img.t, world).x * sx;
         }
     }
     /** Per-render-frame step: eases toward the latest tracked joints (hides the 30 Hz inference cadence). */
@@ -529,19 +528,20 @@ export class Avatar {
         if (!instructor) {
             // Fixed-bone-length copy of the player's pose: angles are the player's, proportions are the rig's.
             this.retarget.solve(this.joints, this.rt, this.seen);
-            // standing feet sit on the floor (squats lower the whole body); jumps add real height on top
+            // The character never leaves the floor: standing feet sit on it (squats lower the whole body), no jump/lift.
             const low = Math.min(this.rt[LM.L_ANKLE].y, this.rt[LM.R_ANKLE].y) - 0.02;
             const d = Math.max(dt, 0.001);
             this.floorOffset += (-low - this.floorOffset) * (1 - Math.exp(-d * 14));
-            this.lift += (this.liftTarget - this.lift) * (1 - Math.exp(-d * 28));
-            const y = (this.glb ? 0 : this.floorOffset) + this.lift;
+            const y = this.glb ? 0 : this.floorOffset;
+            // Sideways: the supporting foot stays planted; the character travels only when the player really steps.
+            const gx = this.stance.update(this.lateral, [this.rt[LM.L_ANKLE].x, this.rt[LM.R_ANKLE].x], [this.rt[LM.L_ANKLE].y, this.rt[LM.R_ANKLE].y], d);
             this.group.position.y = y;
-            this.group.position.x = this.baseX + this.lateral;
+            this.group.position.x = this.baseX + Math.max(-this.latLimit, Math.min(this.latLimit, gx));
             if (this.reflGroup) {
                 this.reflGroup.position.y = -y;
-                this.reflGroup.position.x = this.baseX + this.lateral;
+                this.reflGroup.position.x = this.group.position.x;
             }
-            this.body.layout(this.rt, this.retarget);
+            this.body.layout(this.rt, this.retarget, d);
             this.reflBody?.layout(this.rt, this.retarget);
             return;
         }

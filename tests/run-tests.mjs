@@ -263,6 +263,7 @@ test("one-euro filter reduces jitter on a static pose but follows fast motion", 
 
 console.log("Free-movement retargeting");
 import { Retargeter, Locomotion, RIG } from "../dist/retarget.js";
+import { Stance, STANCE } from "../dist/stance.js";
 {
   const V = () => Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
   const seenAll = new Array(33).fill(true);
@@ -330,34 +331,75 @@ import { Retargeter, Locomotion, RIG } from "../dist/retarget.js";
     p[27] = { x: hipX + 0.02, y: ankleY, visibility: 1 }; p[28] = { x: hipX - 0.02, y: ankleY, visibility: 1 };
     return p;
   };
-  test("standing still -> no lift; jumping -> avatar rises; landing -> back to 0", () => {
+  test("the character has no lift at all: a foot rising in the image can never float her", () => {
     const lo = new Locomotion();
     let t = 0, last;
     for (; t < 2; t += 1 / 30) last = lo.update(img(0.9), 4 / 3, t);
-    assert.ok(last.lift < 0.01, "still " + last.lift);
-    let peak = 0;
-    for (let k = 0; k < 10; k++, t += 1 / 30) peak = Math.max(peak, lo.update(img(0.9 - 0.08 * Math.sin((k / 9) * Math.PI)), 4 / 3, t).lift);
-    assert.ok(peak > 0.15, "peak " + peak);
-    for (let k = 0; k < 6; k++, t += 1 / 30) last = lo.update(img(0.9), 4 / 3, t);
-    assert.ok(last.lift < 0.03, "landed " + last.lift);
+    for (let k = 0; k < 10; k++, t += 1 / 30) last = lo.update(img(0.9 - 0.08 * Math.sin((k / 9) * Math.PI)), 4 / 3, t);
+    assert.equal(last.lift, undefined);
+    assert.ok(Math.abs(last.x) < 1e-6, "x " + last.x);
   });
-  test("stepping on one foot (other foot raised) is NOT a jump", () => {
+  test("leaning / bending forward does not slide the character (scale comes from the image-plane torso in metres)", () => {
     const lo = new Locomotion();
-    let t = 0;
-    for (; t < 1.5; t += 1 / 30) lo.update(img(0.9), 4 / 3, t);
-    const p = img(0.9); p[27].y = 0.8; // one ankle lifted
-    assert.ok(lo.update(p, 4 / 3, t).lift < 0.01);
-  });
-  test("walking away from the camera slowly (feet drift up the image) is not a jump", () => {
-    const lo = new Locomotion();
-    let t = 0, worst = 0;
-    for (let k = 0; k < 120; k++, t += 1 / 30) worst = Math.max(worst, lo.update(img(0.9 - k * 0.0008), 4 / 3, t).lift);
-    assert.ok(worst < 0.08, "worst " + worst);
+    const world = (len) => { const w = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 1 }));
+      w[11] = { x: 0.1, y: -len, z: 0, visibility: 1 }; w[12] = { x: -0.1, y: -len, z: 0, visibility: 1 }; w[23] = { x: 0.08, y: 0, z: 0, visibility: 1 }; w[24] = { x: -0.08, y: 0, z: 0, visibility: 1 }; return w; };
+    let t = 0, x0;
+    const frame = (torsoImg, len) => { const p = img(0.9, 0.62); p[11].y = p[12].y = 0.5 - torsoImg; return lo.update(p, 4 / 3, (t += 1 / 30), world(len)).x; };
+    for (let k = 0; k < 60; k++) x0 = frame(0.2, 0.5);
+    let worst = 0;
+    for (let k = 0; k < 20; k++) worst = Math.max(worst, Math.abs(frame(0.2 * 0.6, 0.5 * 0.6) - x0)); // torso projected 40 % shorter on screen AND in world
+    assert.ok(worst < 0.08, `slid ${worst} m while leaning`);
   });
   test("sideways travel scales with the body and is signed", () => {
     const lo = new Locomotion();
     const a = lo.update(img(0.9, 0.7), 4 / 3, 0).x, b = lo.update(img(0.9, 0.3), 4 / 3, 0.03).x;
     assert.ok(a > 0.5 && b < -0.5, `${a} ${b}`);
+  });
+}
+
+console.log("Planted-foot stance (the character stands on the floor and does not skate)");
+{
+  const run = (frames, dt = 1 / 30) => { const s = new Stance(); const out = []; for (const f of frames) out.push({ g: s.update(f.p, f.ax, f.ay, dt), f }); return { s, out }; };
+  const rng = (() => { let a = 12345; return () => ((a = (a * 1664525 + 1013904223) % 4294967296) / 4294967296) - 0.5; })();
+  const footX = (o, i) => o.g + o.f.ax[i];
+  test("swaying the body over two planted feet (feet truly fixed) -> feet stay put within 1 cm", () => {
+    const fr = []; for (let k = 0; k < 240; k++) { const sway = 0.06 * Math.sin(k / 12); fr.push({ p: sway, ax: [0.1 - sway, -0.1 - sway], ay: [0, 0] }); }
+    const { out } = run(fr); const xs = out.map((o) => footX(o, 0));
+    assert.ok(Math.max(...xs) - Math.min(...xs) < 0.01, "spread " + (Math.max(...xs) - Math.min(...xs)));
+  });
+  test("tracking noise (1 cm hips, 2 cm ankles) -> pelvis jitter < 1.5 cm", () => {
+    const fr = []; for (let k = 0; k < 300; k++) fr.push({ p: rng() * 0.02, ax: [0.1 + rng() * 0.04, -0.1 + rng() * 0.04], ay: [rng() * 0.02, rng() * 0.02] });
+    const { out } = run(fr); const gs = out.slice(30).map((o) => o.g); const m = gs.reduce((a, b) => a + b) / gs.length;
+    const sd = Math.sqrt(gs.reduce((a, b) => a + (b - m) ** 2, 0) / gs.length);
+    assert.ok(sd < 0.015, "sd " + sd);
+  });
+  test("one foot kicked 40 cm sideways and back while the other is planted -> the character does not move (<1.5 cm)", () => {
+    const fr = []; for (let k = 0; k < 120; k++) { const ph = Math.max(0, Math.sin((k / 119) * Math.PI)); fr.push({ p: 0, ax: [0.1 + 0.4 * ph * ph, -0.1], ay: [0.25 * ph, 0] }); }
+    const { out } = run(fr); const gs = out.map((o) => o.g);
+    assert.ok(Math.max(...gs.map(Math.abs)) < 0.015, "moved " + Math.max(...gs.map(Math.abs)));
+  });
+  test("a straight-leg kick (foot lifts only 4 cm but swings 30 cm out in 0.5 s) does not drag the body (< 1.5 cm)", () => {
+    const fr = []; for (let k = 0; k < 150; k++) { const ph = Math.max(0, Math.sin(((k - 20) / 30) * Math.PI)); fr.push({ p: 0, ax: [0.1 + 0.3 * ph, -0.1], ay: [0.04 * ph, 0] }); }
+    const { out } = run(fr); const m = Math.max(...out.map((o) => Math.abs(o.g)));
+    assert.ok(m < 0.015, "dragged " + m);
+  });
+  test("a real side step of 0.6 m -> the character follows and lands within 8 cm; never faster than the speed cap", () => {
+    const fr = []; for (let k = 0; k < 150; k++) { const p = Math.min(0.6, Math.max(0, (k - 30) / 30 * 0.6)); fr.push({ p, ax: [0.1, -0.1], ay: [0, 0] }); }
+    const { out } = run(fr); const end = out[out.length - 1].g;
+    assert.ok(Math.abs(end - 0.6) < 0.08, "end " + end);
+    for (let i = 1; i < out.length; i++) assert.ok(Math.abs(out[i].g - out[i - 1].g) <= STANCE.MAX_SPEED / 30 + 1e-9, "speed at " + i);
+  });
+  test("stepping: weight moves to the other foot (support switches) -> no jump bigger than 6 cm in one frame", () => {
+    const fr = []; for (let k = 0; k < 200; k++) { const ph = k / 200; const p = 0.4 * ph;
+      // right foot (index 1) is planted first, then left; the free foot is raised 12 cm
+      const leftUp = k < 100 ? 0.12 : 0, rightUp = k < 100 ? 0 : 0.12;
+      fr.push({ p, ax: [0.1, -0.1], ay: [leftUp, rightUp] }); }
+    const { out } = run(fr);
+    for (let i = 1; i < out.length; i++) assert.ok(Math.abs(out[i].g - out[i - 1].g) < 0.06, `jump at ${i}: ${out[i].g - out[i - 1].g}`);
+  });
+  test("a bouncing foot near the planting threshold does not make the character twitch", () => {
+    const fr = []; for (let k = 0; k < 240; k++) fr.push({ p: 0, ax: [0.1, -0.1], ay: [0.045 + 0.03 * Math.sin(k / 3), 0] });
+    const { out } = run(fr); assert.ok(Math.max(...out.map((o) => Math.abs(o.g))) < 0.01);
   });
 }
 

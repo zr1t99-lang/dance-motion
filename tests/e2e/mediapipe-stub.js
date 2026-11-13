@@ -32,6 +32,7 @@ export const PoseLandmarker = {
         window.__detectCalls = (window.__detectCalls || 0) + 1;
         const s = window.__synth || { mode: "none" };
         if (s.mode === "none") return { landmarks: [], worldLandmarks: [] };
+        if (s.mode === "fn") return window.__synthFn(performance.now(), ts); // test-scripted physical player: { landmarks, worldLandmarks }
         const now = performance.now();
         let spec;
         if (s.mode === "neutral") spec = NEUTRAL;

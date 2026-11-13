@@ -180,7 +180,11 @@ export class GlbBody {
     this.setWorld(name, q);
   }
 
-  layout(J0: any[], fe0: { face: V3; footL: V3; footR: V3 }) {
+  /** Smoothed ground contact (player only; the coaches' reference data is already smooth). */
+  private groundLow: number | null = null;
+
+  /** @param dt seconds since the last call; when given, the floor contact is smoothed so the body never twitches up/down. */
+  layout(J0: any[], fe0: { face: V3; footL: V3; footR: V3 }, dt?: number) {
     // The model's LEFT limbs live on +x. The stage shows the player as a mirror image, so whichever tracked limb
     // is on the +x side drives the model's left side (this works for the coaches' reference skeleton and the player alike).
     const flip = J0[LM.L_SHOULDER].x + J0[LM.L_HIP].x < J0[LM.R_SHOULDER].x + J0[LM.R_HIP].x;
@@ -253,6 +257,14 @@ export class GlbBody {
       const toe = _w.setFromMatrixPosition(this.b[s + "ToeBase"].bone.matrixWorld);
       this.group.worldToLocal(toe);
       low = Math.min(low, toe.y - this.toeH);
+    }
+    if (dt !== undefined) {
+      // 1.2 cm dead band (tracking noise) + fast smoothing: feet stay on the floor but the pelvis does not jitter or hop
+      if (this.groundLow === null) this.groundLow = low;
+      const e = low - this.groundLow;
+      const dz = 0.012;
+      if (Math.abs(e) > dz) this.groundLow += (e - Math.sign(e) * dz) * (1 - Math.exp(-dt * 30));
+      low = this.groundLow;
     }
     this.lastGroundShift = low;
     this.b.Hips.bone.position.y -= low;

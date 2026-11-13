@@ -146,3 +146,11 @@ The Zumba reference is no longer matched by eye. The lead dancer in the first 60
 Choose the 60 s clip once in Dance Control: it is kept in this browser's IndexedDB (`dance-motion-private`) and loaded automatically
 next time ("Forget the saved clip" removes it). It never leaves the device and is not in the repo. Another phone/browser, or cleared site data,
 means choosing it once again. Tested: `tests/e2e/e2e-saved.py`.
+
+## Grounded, balanced character (player)
+The player's character always stands on the floor: there is **no lift/jump** any more (a foot rising in the camera picture can be a step, a kick,
+a tilted phone or walking away - it used to make her float). Her supporting foot stays planted (`src/stance.ts`): swaying, arm waves and tracking jitter
+do not slide her feet, a kicking/lifted foot never drags the body, and she travels sideways only when the player really steps (5 cm dead zone,
+speed-capped). Sideways distance is calibrated from the torso as the camera sees it, so leaning or bending does not slide her. The floor contact of the
+GLB pelvis is smoothed (1.2 cm dead band). Tested with unit tests and `tests/e2e/e2e-ground.py` (real three.js + real GLB, scripted physical player).
+Not verified: a real camera's noise, a real phone. A real jump is not shown in the air (the character crouches/stays grounded instead).
