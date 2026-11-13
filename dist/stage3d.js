@@ -30,6 +30,24 @@ export class Stage3D {
     postFrame = null;
     /** Set by the game while the player's pose is not being tracked (the 2D player is then hidden). */
     playerHidden = false;
+    /** True once the GLB dancer is on stage. */
+    glbActive = false;
+    /** Replace every figure (coaches and player) by the official GLB dancer. `make` builds one body per figure. */
+    useGlb(make) {
+        for (const a of [this.avatar, ...this.dancers])
+            a.useBody(make());
+        // a neutral white key light so her textures keep their real colours under the pink/blue stage lights
+        const key = new THREE.DirectionalLight(0xffffff, 1.1);
+        key.position.set(0, 2.5, 4);
+        this.scene.add(key, new THREE.AmbientLight(0xffffff, 0.35));
+        this.glbActive = true;
+        // the GLB dancer is taller on screen than the old placeholder: pull the camera back when she is alone so that
+        // raised hands and the feet both stay inside the frame (with coaches the camera is already far enough)
+        if (!this.dancers.length)
+            this.camera.position.z = 5.8;
+        this.setCutoutMode(false);
+        this.postFrame = null;
+    }
     /** Hide the 3D avatars (the 2D cut-out characters are drawn instead). */
     setCutoutMode(on) {
         for (const a of [this.avatar, ...this.dancers])
@@ -218,6 +236,8 @@ export class Stage3D {
             const dt = Math.min(0.1, (now - this.last) / 1000);
             this.last = now;
             this.onFrame?.(dt, now);
+            if (this.glbActive)
+                this.avatar.hideMesh(this.playerHidden);
             this.renderer.render(this.scene, this.camera);
             this.postFrame?.();
         };

@@ -16,6 +16,7 @@
         "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
         "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?external=react",
         "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
         "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"
       }
     }
@@ -27,7 +28,7 @@
   </div>
   <script type="module">
     // Dynamic import so a failed CDN download shows a clear message instead of a blank page.
-    import("./dist/main.js?v=fun1").catch((e) => {
+    import("./dist/main.js?v=glb1").catch((e) => {
       const el = document.getElementById("boot");
       if (!el) return;
       el.className = "boot-fail";

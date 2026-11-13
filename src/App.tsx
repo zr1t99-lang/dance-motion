@@ -52,6 +52,8 @@ function StageCanvas(props: {
   reflections: boolean;
   dancers?: AvatarStyle[];
   cutout?: boolean;
+  /** Called when the official GLB dancer is on stage (true) or could not be loaded (false: fallback look stays). */
+  onGlb?: (ok: boolean) => void;
   onStage: (s: Stage3D | null) => void;
   onError: (e: any) => void;
 }) {
@@ -65,6 +67,7 @@ function StageCanvas(props: {
       props.onError(e);
       return;
     }
+    (window as any).__dm = { stage };
     props.onStage(stage);
     if (props.cutout && ref2.current) {
       const cv = ref2.current;
@@ -88,8 +91,24 @@ function StageCanvas(props: {
         }
       };
     }
+    let gone = false;
+    (async () => {
+      try {
+        const m = await import("./glbDancer.js");
+        const tpl = await m.loadDancer();
+        if (gone) return;
+        stage.useGlb(() => new m.GlbBody(tpl));
+        const c2 = ref2.current;
+        if (c2) c2.getContext("2d")?.clearRect(0, 0, c2.width, c2.height);
+        props.onGlb?.(true);
+      } catch (e) {
+        console.warn("GLB dancer not loaded, keeping the fallback character:", e);
+        if (!gone) props.onGlb?.(false);
+      }
+    })();
     stage.start();
     return () => {
+      gone = true;
       props.onStage(null);
       stage.dispose();
     };
@@ -112,7 +131,7 @@ function Menu(props: { lang: "en" | "ar"; onLang: () => void; onStart: (m: "mirr
         <span>DANCE</span>
         <span className="alt">MOTION</span>
       </div>
-      <div className="menu-sub">{tr("Real camera body-tracking · prototype · ")}<span dir="ltr">build fun1</span></div>
+      <div className="menu-sub">{tr("Real camera body-tracking · prototype · ")}<span dir="ltr">build glb1</span></div>
       {insecure && (
         <div className="warn">
           {tr("This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README).")}
@@ -403,6 +422,8 @@ function ChallengeScreen(props: {
   const [hud, setHud] = useState(HUD0);
   const [results, setResults] = useState(null as Results | null);
   const [lost, setLost] = useState(false);
+  /** true once the official GLB dancer is on stage (her outfit/face are then fixed: no recolouring or photo) */
+  const [glb, setGlb] = useState(false);
   const lostRef = useRef(false);
   const lastJudge = useRef(null as Hud["last"]);
   const tRef = useRef(0);
@@ -638,6 +659,7 @@ function ChallengeScreen(props: {
         style={PLAYER_STYLE}
         dancers={control ? [] : [INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE]}
         cutout
+        onGlb={setGlb}
         reflections={settings.reflections}
         onStage={(s) => {
           stageRef.current = s;
@@ -780,7 +802,7 @@ function ChallengeScreen(props: {
                   {soundMsg && <p className="hint">{soundMsg}</p>}
                 </div>
               )}
-              {!control && (
+              {!control && !glb && (
               <div className="char-box">
                 <div className="char-head">
                   <b>{tr("🎨 Coaches")}</b>
@@ -804,6 +826,7 @@ function ChallengeScreen(props: {
                 </div>
               </div>
               )}
+              {!glb && (
               <div className="char-box">
                 <div className="char-head">
                   <b>{tr("👤 Your character")}</b>
@@ -838,6 +861,7 @@ function ChallengeScreen(props: {
                 </div>
                 {charMsg && <div className="hint">{charMsg}</div>}
               </div>
+              )}
               </div>
               <div className="rc-right">
               {isAr() ? (
@@ -926,6 +950,10 @@ type Screen = "menu" | "loading" | "error" | "calibrate" | "mirror" | "challenge
 
 export function App() {
   const box = useStageBox();
+  // start downloading the 15 MB dancer model while the player is still in the menu
+  useEffect(() => {
+    import("./glbDancer.js").then((m) => m.loadDancer()).catch(() => {});
+  }, []);
   const engine = useMemo(() => new Engine(), []);
   const [settings, setSettingsState] = useState(loadSettings);
   setLang(settings.lang); // module-level language, read by tr() while rendering

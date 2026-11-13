@@ -351,6 +351,8 @@ export class Avatar {
     joints = Array.from({ length: POSE_LANDMARK_COUNT }, () => new THREE.Vector3());
     target = Array.from({ length: POSE_LANDMARK_COUNT }, () => new THREE.Vector3());
     body;
+    /** True once the official GLB character replaced the primitive body. */
+    glb = false;
     reflBody = null;
     reflGroup = null;
     geos;
@@ -399,6 +401,23 @@ export class Avatar {
         if (!this.ready)
             return null;
         return { J: this.isInst ? this.joints : this.rt, ox: this.group.position.x, oy: this.group.position.y, scale: this.group.scale.x, look: this.look };
+    }
+    /** Diagnostics: world position of a GLB bone (null while the primitive body is used). */
+    bonePos(name) {
+        return this.glb ? this.body.bonePos(name) : null;
+    }
+    /** Swap the primitive body for the GLB character (floor-grounded by itself, no reflection copy). */
+    useBody(body) {
+        this.group.remove(this.body.group);
+        this.body.setLook({ face: null });
+        if (this.reflGroup) {
+            this.reflGroup.parent?.remove(this.reflGroup);
+            this.reflGroup = null;
+        }
+        this.reflBody = null;
+        this.body = body;
+        this.group.add(body.group);
+        this.glb = true;
     }
     /** Put the avatar at x metres from the centre, scaled (used for the two backup dancers). */
     place(x, scale) {
@@ -515,7 +534,7 @@ export class Avatar {
             const d = Math.max(dt, 0.001);
             this.floorOffset += (-low - this.floorOffset) * (1 - Math.exp(-d * 14));
             this.lift += (this.liftTarget - this.lift) * (1 - Math.exp(-d * 28));
-            const y = this.floorOffset + this.lift;
+            const y = (this.glb ? 0 : this.floorOffset) + this.lift;
             this.group.position.y = y;
             this.group.position.x = this.baseX + this.lateral;
             if (this.reflGroup) {

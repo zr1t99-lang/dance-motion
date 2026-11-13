@@ -37,6 +37,7 @@ def route_cdn(page):
     page.route("https://esm.sh/react-dom@18.3.1/client?external=react", fulfill(E2E / "vendor/dom.js"))
     page.route("https://esm.sh/__vendor_all.js", fulfill(E2E / "vendor/vendor-all.js"))
     page.route("https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", fulfill(E2E / "three-stub.js"))
+    page.route("https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/**", fulfill(E2E / "three-addons-stub.js"))
     page.route("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs", fulfill(E2E / "mediapipe-stub.js"))
 
 

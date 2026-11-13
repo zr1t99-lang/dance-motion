@@ -49,6 +49,7 @@ declare module "three" {
   export const AdditiveBlending: any;
   export const RepeatWrapping: any;
   export const SRGBColorSpace: any;
+  export const AmbientLight: any;
 }
 declare namespace JSX {
   type Element = any;
@@ -61,4 +62,10 @@ declare namespace JSX {
   interface ElementChildrenAttribute {
     children: {};
   }
+}
+declare module "three/addons/loaders/GLTFLoader.js" {
+  export const GLTFLoader: any;
+}
+declare module "three/addons/utils/SkeletonUtils.js" {
+  export function clone(o: any): any;
 }
