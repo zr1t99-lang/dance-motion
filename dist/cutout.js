@@ -14,9 +14,101 @@ const INK = "#1a0d3a";
 export class Cutout {
     canvas;
     ctx;
+    spr = null;
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
+        void this.loadSprites();
+    }
+    /** The character art (cut out of the supplied character sheet) as separate body pieces. */
+    async loadSprites() {
+        try {
+            const rig = await (await fetch("assets/char/rig.json")).json();
+            const imgs = {};
+            await Promise.all(Object.keys(rig.pieces).map((k) => new Promise((res, rej) => {
+                const im = new Image();
+                im.onload = () => res();
+                im.onerror = () => rej(new Error("missing " + k));
+                im.src = `assets/char/${k}.png`;
+                imgs[k] = im;
+            })));
+            this.spr = { rig, imgs };
+        }
+        catch {
+            this.spr = null; // falls back to the vector figure
+        }
+    }
+    /** Draw one art piece so that its rest segment a->b lands on the target segment A->B. */
+    seg(name, ra, rb, A, B, G) {
+        const sp = this.spr, g = this.ctx, pc = sp.rig.pieces[name];
+        const rl = Math.hypot(rb[0] - ra[0], rb[1] - ra[1]) || 1, tl = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+        const along = Math.min(1.5, Math.max(0.6, tl / (rl * G)));
+        g.save();
+        g.translate(A[0], A[1]);
+        g.rotate(Math.atan2(B[1] - A[1], B[0] - A[0]));
+        g.scale(along * G, G);
+        g.rotate(-Math.atan2(rb[1] - ra[1], rb[0] - ra[0]));
+        g.translate(-ra[0], -ra[1]);
+        g.drawImage(sp.imgs[name], pc.x, pc.y);
+        g.restore();
+    }
+    /** Rigid piece: art anchor `ra` -> canvas point `A`, rotated by `ang`, uniform scale G. */
+    rigid(name, ra, A, ang, G) {
+        const sp = this.spr, g = this.ctx, pc = sp.rig.pieces[name];
+        g.save();
+        g.translate(A[0], A[1]);
+        g.rotate(ang);
+        g.scale(G, G);
+        g.translate(-ra[0], -ra[1]);
+        g.drawImage(sp.imgs[name], pc.x, pc.y);
+        g.restore();
+    }
+    paint(f, P, m) {
+        if (!this.spr)
+            return this.draw(f, P, m);
+        const R = this.spr.rig.rig;
+        const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const ls = P(LM.L_SHOULDER), rs = P(LM.R_SHOULDER), lh = P(LM.L_HIP), rh = P(LM.R_HIP);
+        const SM = mid(ls, rs), HM = mid(lh, rh);
+        const lear = P(LM.L_EAR), rear = P(LM.R_EAR);
+        const head = mid(lear, rear);
+        const ART_TORSO = Math.hypot(R.SM[0] - R.HM[0], R.SM[1] - R.HM[1]);
+        const nominal = m * 0.0031;
+        let G = Math.hypot(SM[0] - HM[0], SM[1] - HM[1]) / ART_TORSO;
+        G = Math.min(nominal * 1.4, Math.max(nominal * 0.7, G || nominal));
+        const spine = Math.atan2(SM[1] - HM[1], SM[0] - HM[0]), spineR = Math.atan2(R.SM[1] - R.HM[1], R.SM[0] - R.HM[0]);
+        // legs (the art's image-left leg goes to whichever leg is on the left of the screen)
+        const sides = [
+            { h: P(LM.L_HIP), k: P(LM.L_KNEE), a: P(LM.L_ANKLE) },
+            { h: P(LM.R_HIP), k: P(LM.R_KNEE), a: P(LM.R_ANKLE) },
+        ].sort((a, b) => a.h[0] - b.h[0]);
+        const legs = [
+            ["legL_th", "legL_sh", "HL", "KL", "AL", 0],
+            ["legR_th", "legR_sh", "HR", "KR", "AR", 1],
+        ];
+        for (const [th, sh, h, k, a, i] of legs) {
+            this.seg(th, R[h], R[k], sides[i].h, sides[i].k, G);
+            this.seg(sh, R[k], R[a], sides[i].k, sides[i].a, G);
+        }
+        const hipAng = Math.atan2(rh[1] - lh[1], rh[0] - lh[0]);
+        const flip = lh[0] > rh[0] ? Math.PI : 0;
+        this.rigid("pelvis", R.HM, HM, hipAng + flip, G);
+        this.rigid("torso", R.HM, HM, spine - spineR, G);
+        const arms = [
+            { s: P(LM.L_SHOULDER), e: P(LM.L_ELBOW), w: P(LM.L_WRIST) },
+            { s: P(LM.R_SHOULDER), e: P(LM.R_ELBOW), w: P(LM.R_WRIST) },
+        ].sort((a, b) => a.s[0] - b.s[0]);
+        const arm = [
+            ["armL_up", "armL_lo", "SL", "EL", "WL", 0],
+            ["armR_up", "armR_lo", "SR", "ER", "WR", 1],
+        ];
+        for (const [u, l, s, e, w, i] of arm) {
+            this.seg(u, R[s], R[e], arms[i].s, arms[i].e, G);
+            this.seg(l, R[e], R[w], arms[i].e, arms[i].w, G);
+        }
+        // head: neck base sits on the shoulders, the head turns toward where the ears are
+        const up = Math.atan2(head[1] - SM[1], head[0] - SM[0]), upR = Math.atan2(R.HC[1] - R.NK[1], R.HC[0] - R.NK[0]);
+        this.rigid("head", R.NK, SM, up - upR, G);
     }
     begin() {
         const c = this.canvas;
@@ -49,10 +141,10 @@ export class Cutout {
             g.globalAlpha = 0.16;
             g.translate(0, floor * 2);
             g.scale(1, -1);
-            this.draw(f, P, ppm * f.scale);
+            this.paint(f, P, ppm * f.scale);
             g.restore();
         }
-        this.draw(f, P, ppm * f.scale);
+        this.paint(f, P, ppm * f.scale);
     }
     limb(a, b, r, fill, ink = true, r2 = r) {
         const g = this.ctx;

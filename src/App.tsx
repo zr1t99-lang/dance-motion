@@ -110,7 +110,7 @@ function Menu(props: { onStart: (m: "mirror" | "challenge") => void; onSettings:
         <span>DANCE</span>
         <span className="alt">MOTION</span>
       </div>
-      <div className="menu-sub">Real camera body-tracking · prototype · build cut2</div>
+      <div className="menu-sub">Real camera body-tracking · prototype · build art1</div>
       {insecure && (
         <div className="warn">
           This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README).
