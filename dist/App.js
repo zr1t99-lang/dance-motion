@@ -4,6 +4,7 @@ import { Engine } from "./engine.js";
 import { CameraError } from "./camera.js";
 import { TrackerError } from "./tracker.js";
 import { Stage3D, StageError } from "./stage3d.js";
+import { Cutout } from "./cutout.js";
 import { INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE, PLAYER_STYLE } from "./avatar3d.js";
 import { COACH_SETS, OUTFITS, loadCoachSet, outfitLook, saveCoachSet } from "./coaches.js";
 import { HAIR_COLORS, captureCharacter, faceCanvas, loadCharacter, saveCharacter } from "./character.js";
@@ -35,6 +36,7 @@ function toAppError(e) {
 /* ------------------------------------------------------------ 3D canvas */
 function StageCanvas(props) {
     const ref = useRef(null);
+    const ref2 = useRef(null);
     useEffect(() => {
         let stage;
         try {
@@ -45,13 +47,37 @@ function StageCanvas(props) {
             return;
         }
         props.onStage(stage);
+        if (props.cutout && ref2.current) {
+            const cv = ref2.current;
+            const cut = new Cutout(cv);
+            stage.setCutoutMode(true);
+            stage.postFrame = () => {
+                const { w, h } = cut.begin();
+                const cw = cv.clientWidth || 1, ch = cv.clientHeight || 1;
+                const k = w / cw;
+                const list = [...stage.dancers, stage.avatar];
+                for (const a of list) {
+                    const f = a.figureState();
+                    if (!f)
+                        continue;
+                    const base = stage.project(f.ox, 0, cw, ch);
+                    const map = (x, y) => {
+                        const q = stage.project(x, y, cw, ch);
+                        return [q.px * k, q.py * k];
+                    };
+                    if (a === stage.avatar)
+                        f.scale *= 0.9;
+                    cut.figure(f, map, base.ppm * k);
+                }
+            };
+        }
         stage.start();
         return () => {
             props.onStage(null);
             stage.dispose();
         };
     }, []);
-    return _jsx("canvas", { ref: ref, className: "stage3d" });
+    return (_jsxs(_Fragment, { children: [_jsx("canvas", { ref: ref, className: "stage3d" }), props.cutout && _jsx("canvas", { ref: ref2, className: "stage2d" })] }));
 }
 /* -------------------------------------------------------------- screens */
 function Menu(props) {
@@ -217,10 +243,10 @@ function ChallengeScreen(props) {
         applyCoaches(stage);
         const c = charRef.current;
         if (!c) {
-            stage.avatar.setLook({ jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true });
+            stage.avatar.setLook({ jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true, longHair: true });
             return;
         }
-        stage.avatar.setLook({ skin: c.skin, jacket: c.jacket, hair: c.hair, baggy: true });
+        stage.avatar.setLook({ skin: c.skin, jacket: c.jacket, hair: c.hair, baggy: true, longHair: true });
         const go = (cv) => stage.avatar.setLook({ face: cv });
         if (faceRef.current)
             go(faceRef.current);
@@ -238,7 +264,7 @@ function ChallengeScreen(props) {
         if (c)
             applyLook(stage);
         else {
-            stage.avatar.setLook({ face: null, skin: PLAYER_STYLE.skin, hair: PLAYER_STYLE.hair, jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true });
+            stage.avatar.setLook({ face: null, skin: PLAYER_STYLE.skin, hair: PLAYER_STYLE.hair, jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true, longHair: true });
         }
     };
     const takePhoto = () => {

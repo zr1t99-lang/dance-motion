@@ -73,7 +73,7 @@ export function cartoonFace(skin, girl) {
 export function outfitLook(o) {
     return {
         skin: o.skin, jacket: o.jacket, shirt: o.shirt, pants: o.pants, shoes: o.shoes, glove: o.skin, hair: o.hair,
-        pony: o.pony, shades: false, headband: o.headband, baggy: true, face: cartoonFace(o.skin, o.girl),
+        pony: o.pony && !o.girl, longHair: o.girl, shades: false, headband: o.headband, baggy: true, face: cartoonFace(o.skin, o.girl),
     };
 }
 const KEY = "dance-motion.coachset.v1";

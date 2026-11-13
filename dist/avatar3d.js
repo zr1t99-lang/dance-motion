@@ -131,12 +131,33 @@ class Body {
             P(`hipj${side}`, "sph", s.pants);
             P(`shoe${side}`, "box", s.shoes);
         }
+        // styled-outfit details (only shown once a coach/player look turns `baggy` on)
+        P("hairBack", "sph", s.hair);
+        P("hairSideL", "sph", s.hair);
+        P("hairSideR", "sph", s.hair);
+        P("clip", "sph", s.jacket);
+        P("panelL", "box", s.jacket);
+        P("panelR", "box", s.jacket);
+        P("star", "box", 0x7a3cff);
+        for (const sd of ["L", "R"])
+            for (const k of ["T", "S"])
+                P(`stripe${sd}${k}`, "cyl", s.jacket);
+        for (const n of this.EXTRA)
+            this.show(n, false);
         this.parts.shades.core.visible = s.shades;
         if (this.parts.shades.rim)
             this.parts.shades.rim.visible = s.shades;
         this.parts.pony.core.visible = s.shades;
         if (this.parts.pony.rim)
             this.parts.pony.rim.visible = s.shades;
+    }
+    EXTRA = ["hairBack", "hairSideL", "hairSideR", "clip", "panelL", "panelR", "star", "stripeLT", "stripeLS", "stripeRT", "stripeRS"];
+    longHair = false;
+    show(n, on) {
+        const q = this.parts[n];
+        q.core.visible = on;
+        if (q.rim)
+            q.rim.visible = on;
     }
     faceMesh = null;
     faceTex = null;
@@ -187,9 +208,21 @@ class Body {
         if (look.baggy !== undefined) {
             this.legK = look.baggy ? 1.5 : 1;
             this.chunky = look.baggy;
+            for (const n of ["panelL", "panelR", "star", "stripeLT", "stripeLS", "stripeRT", "stripeRS"])
+                this.show(n, look.baggy);
         }
+        if (look.longHair !== undefined) {
+            this.longHair = look.longHair;
+            for (const n of ["hairBack", "hairSideL", "hairSideR", "clip"])
+                this.show(n, look.longHair);
+            if (look.longHair)
+                this.show("pony", false);
+        }
+        if (look.jacket !== undefined)
+            for (const n of ["panelL", "panelR", "clip", "stripeLT", "stripeLS", "stripeRT", "stripeRS"])
+                p[n].setColor(look.jacket);
         if (look.hair !== undefined)
-            for (const n of ["hair", "pony"])
+            for (const n of ["hair", "pony", "hairBack", "hairSideL", "hairSideR"])
                 p[n].setColor(look.hair);
         if (look.face !== undefined) {
             if (this.faceMesh) {
@@ -225,6 +258,14 @@ class Body {
         ez.crossVectors(ex, ey);
         tmp.copy(sh).add(hip).multiplyScalar(0.5);
         p.torso.box(tmp, ex, ey, ez, shW * 1.18 + 0.04, torsoLen * 0.78, 0.2);
+        if (this.legK > 1) {
+            for (const [n, sg] of [["panelL", 1], ["panelR", -1]]) {
+                tmp.copy(sh).add(hip).multiplyScalar(0.5).addScaledVector(ex, sg * (shW * 0.45 + 0.02)).addScaledVector(ez, 0.012);
+                p[n].box(tmp, ex, ey, ez, shW * 0.27, torsoLen * 0.78, 0.215);
+            }
+            tmp.copy(sh).addScaledVector(ey, -torsoLen * 0.3).addScaledVector(ez, 0.108);
+            p.star.box(tmp, ex, ey, ez, 0.07, 0.07, 0.012);
+        }
         tmp.copy(hip).addScaledVector(ey, 0.03);
         p.pelvis.box(tmp, ex, ey, ez, hipW * 1.5 + 0.04 + (this.legK - 1) * 0.1, 0.2, 0.21 + (this.legK - 1) * 0.1);
         // head & neck (the head turns with the player's nose direction)
@@ -242,6 +283,16 @@ class Body {
         tmp.copy(head).addScaledVector(fwd, -0.13).addScaledVector(hup, -0.01);
         tmp2.copy(head).addScaledVector(fwd, -0.2).addScaledVector(hup, -0.17);
         p.pony.bone(tmp, tmp2, 0.032);
+        if (this.longHair) {
+            tmp.copy(head).addScaledVector(fwd, -0.07).addScaledVector(hup, -0.13);
+            p.hairBack.box(tmp, hx, hup, fwd, 0.13, 0.23, 0.075);
+            for (const [n, sg] of [["hairSideL", 1], ["hairSideR", -1]]) {
+                tmp.copy(head).addScaledVector(hx, sg * 0.1).addScaledVector(fwd, -0.02).addScaledVector(hup, -0.11);
+                p[n].box(tmp, hx, hup, fwd, 0.04, 0.15, 0.05);
+            }
+            tmp.copy(head).addScaledVector(hx, 0.075).addScaledVector(hup, 0.075).addScaledVector(fwd, 0.075);
+            p.clip.ball(tmp, 0.022);
+        }
         tmp.copy(head).addScaledVector(fwd, 0.098).addScaledVector(hup, 0.012);
         p.shades.box(tmp, hx, hup, fwd, 0.19, 0.04, 0.03);
         if (this.parts.band.core.visible) {
@@ -273,6 +324,16 @@ class Body {
             p[`shin${sd}`].bone(J[iK], J[iA], 0.064 * this.legK);
             p[`knee${sd}`].ball(J[iK], 0.07 * this.legK);
             p[`hipj${sd}`].ball(J[iH], 0.085 * Math.min(this.legK, 1.25));
+            if (this.legK > 1) {
+                const out = this.tmp2.copy(ex).multiplyScalar(sd === "L" ? 1 : -1);
+                const o1 = 0.078 * this.legK * 0.97, o2 = 0.064 * this.legK * 0.97;
+                this.fx.copy(J[iH]).addScaledVector(out, o1);
+                this.fy.copy(J[iK]).addScaledVector(out, o1);
+                p[`stripe${sd}T`].bone(this.fx, this.fy, 0.013);
+                this.fx.copy(J[iK]).addScaledVector(out, o2);
+                this.fy.copy(J[iA]).addScaledVector(out, o2);
+                p[`stripe${sd}S`].bone(this.fx, this.fy, 0.013);
+            }
             // shoe follows the player's heel -> toe direction
             const fd = sd === "L" ? fe.footL : fe.footR;
             const fz = this.fz.set(fd.x, fd.y, fd.z).normalize();
@@ -312,6 +373,7 @@ export class Avatar {
             sph: new THREE.SphereGeometry(1, 16, 12),
             box: new THREE.BoxGeometry(1, 1, 1),
         };
+        Object.assign(this.look, { skin: style.skin, jacket: style.jacket, shirt: style.jacket, pants: style.pants, shoes: style.shoes, hair: style.hair });
         this.body = new Body(style, false, this.geos);
         this.group.add(this.body.group);
         if (reflection) {
@@ -320,6 +382,23 @@ export class Avatar {
             this.reflGroup.scale.y = -1;
             this.reflGroup.add(this.reflBody.group);
         }
+    }
+    /** Everything the 2D cut-out renderer needs: the final joints, where the figure stands, and its look. */
+    look = {
+        skin: 0, jacket: 0, shirt: 0, pants: 0, shoes: 0, hair: 0, pony: false, baggy: false,
+        headband: null, face: null,
+    };
+    ready = false;
+    isInst = false;
+    hideMesh(hidden) {
+        this.group.visible = !hidden;
+        if (this.reflGroup)
+            this.reflGroup.visible = !hidden;
+    }
+    figureState() {
+        if (!this.ready)
+            return null;
+        return { J: this.isInst ? this.joints : this.rt, ox: this.group.position.x, oy: this.group.position.y, scale: this.group.scale.x, look: this.look };
     }
     /** Put the avatar at x metres from the centre, scaled (used for the two backup dancers). */
     place(x, scale) {
@@ -338,6 +417,10 @@ export class Avatar {
     /** Customise the look (the player's character: skin / shirt / hair colour and face photo). */
     setLook(look) {
         this.body.setLook(look);
+        const L = this.look;
+        for (const [k, v] of Object.entries(look))
+            if (v !== undefined)
+                L[k] = v;
         const { face, ...rest } = look;
         void face;
         this.reflBody?.setLook(rest);
@@ -405,6 +488,8 @@ export class Avatar {
                 if (!this.seen[i])
                     return;
         }
+        this.ready = true;
+        this.isInst = instructor;
         // Head placement when the ears are not (yet) reliably detected: fall back to the nose, or to
         // a point above the shoulders if the face isn't visible either.
         if (!this.seen[LM.L_EAR] || !this.seen[LM.R_EAR]) {

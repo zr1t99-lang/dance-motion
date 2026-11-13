@@ -37,6 +37,26 @@ export class Stage3D {
   readonly dancers: Avatar[] = [];
   /** Called every render frame before drawing: (dtSeconds, rAF timestamp ms). */
   onFrame: ((dt: number, now: number) => void) | null = null;
+  /** Called after each render (used by the 2D cut-out overlay). */
+  postFrame: (() => void) | null = null;
+  /** Hide the 3D avatars (the 2D cut-out characters are drawn instead). */
+  setCutoutMode(on: boolean) {
+    for (const a of [this.avatar, ...this.dancers]) a.hideMesh(on);
+  }
+  /** Project scene metres (x,y at z=0) to canvas CSS pixels, plus pixels-per-metre there. */
+  project(x: number, y: number, w: number, h: number): { px: number; py: number; ppm: number } {
+    const cam = this.camera;
+    const cy = 1.1, cz = cam.position.z;
+    const fy = -0.1, fz = -cz, fl = Math.hypot(fy, fz);
+    const f = [0, fy / fl, fz / fl];
+    const up = [0, -f[2], f[1]];
+    const dy = y - cy, dz = -cz;
+    const depth = dy * f[1] + dz * f[2];
+    const yu = dy * up[1] + dz * up[2];
+    const t = Math.tan((cam.fov * Math.PI) / 360);
+    const ppm = h / 2 / (depth * t);
+    return { px: w / 2 + x * ppm, py: h / 2 - yu * ppm, ppm };
+  }
   private renderer: any;
   private scene = new THREE.Scene();
   private camera: any;
@@ -238,6 +258,7 @@ export class Stage3D {
       this.last = now;
       this.onFrame?.(dt, now);
       this.renderer.render(this.scene, this.camera);
+      this.postFrame?.();
     };
     this.raf = requestAnimationFrame(loop);
   }
