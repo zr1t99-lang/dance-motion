@@ -115,6 +115,10 @@ class Body {
         P("hair", "sph", s.hair);
         P("pony", "cyl", s.hair);
         P("shades", "box", 0x120a2a);
+        P("band", "cyl", 0xffffff);
+        this.parts.band.core.visible = false;
+        if (this.parts.band.rim)
+            this.parts.band.rim.visible = false;
         for (const side of ["L", "R"]) {
             P(`uarm${side}`, "cyl", s.jacket);
             P(`farm${side}`, "cyl", s.skin);
@@ -136,6 +140,8 @@ class Body {
     }
     faceMesh = null;
     faceTex = null;
+    legK = 1;
+    chunky = false;
     /** Recolour the avatar (the player's own character). Any field may be omitted. */
     setLook(look) {
         const p = this.parts;
@@ -143,8 +149,45 @@ class Body {
             for (const n of ["neck", "head", "farmL", "farmR"])
                 p[n].setColor(look.skin);
         if (look.jacket !== undefined)
-            for (const n of ["torso", "uarmL", "uarmR", "shoulderL", "shoulderR", "elbowL", "elbowR"])
+            for (const n of ["uarmL", "uarmR", "shoulderL", "shoulderR", "elbowL", "elbowR"])
                 p[n].setColor(look.jacket);
+        if (look.jacket !== undefined && look.shirt === undefined)
+            p.torso.setColor(look.jacket);
+        if (look.shirt !== undefined)
+            p.torso.setColor(look.shirt);
+        if (look.pants !== undefined)
+            for (const n of ["pelvis", "thighL", "thighR", "shinL", "shinR", "kneeL", "kneeR", "hipjL", "hipjR"])
+                p[n].setColor(look.pants);
+        if (look.shoes !== undefined) {
+            p.shoeL.setColor(look.shoes);
+            p.shoeR.setColor(look.shoes);
+        }
+        if (look.glove !== undefined) {
+            p.handL.setColor(look.glove);
+            p.handR.setColor(look.glove);
+        }
+        if (look.pony !== undefined) {
+            p.pony.core.visible = look.pony;
+            if (p.pony.rim)
+                p.pony.rim.visible = look.pony;
+        }
+        if (look.shades !== undefined) {
+            p.shades.core.visible = look.shades;
+            if (p.shades.rim)
+                p.shades.rim.visible = look.shades;
+        }
+        if (look.headband !== undefined) {
+            const on = look.headband !== null;
+            p.band.core.visible = on;
+            if (p.band.rim)
+                p.band.rim.visible = on;
+            if (on)
+                p.band.setColor(look.headband);
+        }
+        if (look.baggy !== undefined) {
+            this.legK = look.baggy ? 1.5 : 1;
+            this.chunky = look.baggy;
+        }
         if (look.hair !== undefined)
             for (const n of ["hair", "pony"])
                 p[n].setColor(look.hair);
@@ -183,7 +226,7 @@ class Body {
         tmp.copy(sh).add(hip).multiplyScalar(0.5);
         p.torso.box(tmp, ex, ey, ez, shW * 1.18 + 0.04, torsoLen * 0.78, 0.2);
         tmp.copy(hip).addScaledVector(ey, 0.03);
-        p.pelvis.box(tmp, ex, ey, ez, hipW * 1.5 + 0.04, 0.2, 0.21);
+        p.pelvis.box(tmp, ex, ey, ez, hipW * 1.5 + 0.04 + (this.legK - 1) * 0.1, 0.2, 0.21 + (this.legK - 1) * 0.1);
         // head & neck (the head turns with the player's nose direction)
         head.copy(J[LM.L_EAR]).add(J[LM.R_EAR]).multiplyScalar(0.5);
         head.y += 0.02;
@@ -201,6 +244,11 @@ class Body {
         p.pony.bone(tmp, tmp2, 0.032);
         tmp.copy(head).addScaledVector(fwd, 0.098).addScaledVector(hup, 0.012);
         p.shades.box(tmp, hx, hup, fwd, 0.19, 0.04, 0.03);
+        if (this.parts.band.core.visible) {
+            tmp.copy(head).addScaledVector(hup, 0.058).addScaledVector(fwd, 0.04).addScaledVector(hx, -0.112);
+            tmp2.copy(head).addScaledVector(hup, 0.058).addScaledVector(fwd, 0.04).addScaledVector(hx, 0.112);
+            p.band.bone(tmp, tmp2, 0.019);
+        }
         if (this.faceMesh) {
             // the player's own photo, as a round "face plate" just in front of the head
             tmp.copy(head).addScaledVector(fwd, 0.118).addScaledVector(hup, 0.004);
@@ -221,10 +269,10 @@ class Body {
             p[`elbow${sd}`].ball(J[iE], 0.044);
             tmp.subVectors(J[iW], J[iE]).normalize().multiplyScalar(0.065).add(J[iW]);
             p[`hand${sd}`].ball(tmp, 0.052);
-            p[`thigh${sd}`].bone(J[iH], J[iK], 0.078);
-            p[`shin${sd}`].bone(J[iK], J[iA], 0.064);
-            p[`knee${sd}`].ball(J[iK], 0.07);
-            p[`hipj${sd}`].ball(J[iH], 0.085);
+            p[`thigh${sd}`].bone(J[iH], J[iK], 0.078 * this.legK);
+            p[`shin${sd}`].bone(J[iK], J[iA], 0.064 * this.legK);
+            p[`knee${sd}`].ball(J[iK], 0.07 * this.legK);
+            p[`hipj${sd}`].ball(J[iH], 0.085 * Math.min(this.legK, 1.25));
             // shoe follows the player's heel -> toe direction
             const fd = sd === "L" ? fe.footL : fe.footR;
             const fz = this.fz.set(fd.x, fd.y, fd.z).normalize();
@@ -233,7 +281,7 @@ class Body {
             tmp.copy(J[iA]);
             tmp.y -= 0.035;
             tmp.addScaledVector(fz, 0.06);
-            p[`shoe${sd}`].box(tmp, fx, fy, fz, 0.1, 0.075, 0.24);
+            p[`shoe${sd}`].box(tmp, fx, fy, fz, this.chunky ? 0.125 : 0.1, this.chunky ? 0.1 : 0.075, this.chunky ? 0.28 : 0.24);
         }
     }
 }
@@ -290,8 +338,9 @@ export class Avatar {
     /** Customise the look (the player's character: skin / shirt / hair colour and face photo). */
     setLook(look) {
         this.body.setLook(look);
-        if (look.skin !== undefined || look.jacket !== undefined || look.hair !== undefined)
-            this.reflBody?.setLook({ skin: look.skin, jacket: look.jacket, hair: look.hair });
+        const { face, ...rest } = look;
+        void face;
+        this.reflBody?.setLook(rest);
     }
     /** Extra scene object to add alongside `group` (floor reflection), or null. */
     get reflection() {

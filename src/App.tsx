@@ -4,6 +4,7 @@ import { CameraError } from "./camera.js";
 import { TrackerError } from "./tracker.js";
 import { Stage3D, StageError } from "./stage3d.js";
 import { INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE, PLAYER_STYLE, type AvatarStyle } from "./avatar3d.js";
+import { COACH_SETS, OUTFITS, loadCoachSet, outfitLook, saveCoachSet } from "./coaches.js";
 import { HAIR_COLORS, captureCharacter, faceCanvas, loadCharacter, saveCharacter, type Character } from "./character.js";
 import { MusicPlayer, type MusicStatus } from "./songPlayer.js";
 import { buildSunshineShake } from "./songs/sunshineShake.js";
@@ -374,10 +375,21 @@ function ChallengeScreen(props: {
   const [charBusy, setCharBusy] = useState(0 as number); // countdown seconds while taking the photo
   const charRef = useRef(character);
   charRef.current = character;
+  const [coachSet, setCoachSet] = useState(loadCoachSet());
+  const coachRef = useRef(coachSet);
+  coachRef.current = coachSet;
+  const applyCoaches = (stage: Stage3D) => {
+    const pair = COACH_SETS[coachRef.current].pair;
+    stage.dancers.forEach((d, i) => d.setLook(outfitLook(OUTFITS[pair[i % 2]])));
+  };
   const applyLook = (stage: Stage3D) => {
+    applyCoaches(stage);
     const c = charRef.current;
-    if (!c) return;
-    stage.avatar.setLook({ skin: c.skin, jacket: c.jacket, hair: c.hair });
+    if (!c) {
+      stage.avatar.setLook({ jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true });
+      return;
+    }
+    stage.avatar.setLook({ skin: c.skin, jacket: c.jacket, hair: c.hair, baggy: true });
     const go = (cv: HTMLCanvasElement) => stage.avatar.setLook({ face: cv });
     if (faceRef.current) go(faceRef.current);
     else faceCanvas(c).then((cv) => { faceRef.current = cv; go(cv); }).catch(() => {});
@@ -391,7 +403,7 @@ function ChallengeScreen(props: {
     if (!stage) return;
     if (c) applyLook(stage);
     else {
-      stage.avatar.setLook({ face: null, skin: PLAYER_STYLE.skin, jacket: PLAYER_STYLE.jacket, hair: PLAYER_STYLE.hair });
+      stage.avatar.setLook({ face: null, skin: PLAYER_STYLE.skin, hair: PLAYER_STYLE.hair, jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true });
     }
   };
   const takePhoto = () => {
@@ -706,6 +718,28 @@ function ChallengeScreen(props: {
                   {soundMsg && <p className="hint">{soundMsg}</p>}
                 </div>
               )}
+              <div className="char-box">
+                <div className="char-head">
+                  <b>🎨 Coaches</b>
+                  <span className="hint">optional outfits</span>
+                </div>
+                <div className="coach-row">
+                  {COACH_SETS.map((c, i) => (
+                    <button
+                      key={c.name}
+                      className={"chip" + (i === coachSet ? " sel" : "")}
+                      onClick={() => {
+                        setCoachSet(i);
+                        coachRef.current = i;
+                        saveCoachSet(i);
+                        if (stageRef.current) applyCoaches(stageRef.current);
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="char-box">
                 <div className="char-head">
                   <b>👤 Your character</b>

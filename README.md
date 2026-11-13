@@ -97,6 +97,7 @@ The e2e test boots the real `index.html` + `dist/`, uses Chrome's fake *camera d
 | Shoulder bounce / hip sway in the choreography | Animated on the 3D dancer, **not scored** (2D camera can't judge them reliably) |
 | **Two backup dancers + you in the middle** (instructors on both sides, your character follows your camera in the centre) | **Implemented**; layout logic tested, **the real 3D look has not been seen** (Three.js not available in my sandbox) |
 | **My character from a photo** (face photo cropped from your camera frame onto the avatar's head; skin and shirt colour sampled; hair colour chosen) | **Implemented**; photo capture/storage tested in headless Chrome with a fake camera; **how the face looks on the 3D head is unverified**; not a 3D face scan: it is a flat photo "face plate" |
+| **Coach outfits** (pink/purple coaches in cartoon style + 3 optional outfit pairs: wide cargo pants, chunky sneakers, ponytail/headband, cartoon face) | **Implemented as colours/shapes on the simple 3D figures**; it does **not** look like a painted 3D-cartoon render; for that, rigged character models (GLB) are needed |
 | Choreography: each move is held ~2 s (4 beats), 56 scored moves | **Working** (tests) |
 | Backing click beat (120 BPM) for the 30 s test routine | **Implemented** |
 | TV Mode: TV layout, fullscreen, screen wake-lock, mirroring instructions | **Partial by design**: the phone stays the camera/tracker; you mirror its screen with AirPlay / Cast / HDMI. **No automatic TV connection is claimed or implemented.** |
