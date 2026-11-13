@@ -55,6 +55,11 @@ SETUP = """async () => {
         X[k] = X[h] + dx / d * along; Y[k] = Y[h] + dy / d * along; Z[k] = -perp;
       }
     }
+    if (sc.name === 'turn') {                                                    // the player keeps turning her head left/right (nose and ears swing around)
+      const yaw = 0.9 * Math.sin(t * 2.4), c = Math.cos(yaw), sn = Math.sin(yaw), cxm = (X[7] + X[8]) / 2;
+      for (const i of [0, 7, 8, 9, 10]) { const dx = X[i] - cxm, dz = Z[i]; X[i] = cxm + dx * c + dz * sn; Z[i] = -dx * sn + dz * c + (i === 0 ? -0.08 * c : 0); }
+      X[0] += 0.08 * sn;
+    }
     const hx = (X[23] + X[24]) / 2, hy = (Y[23] + Y[24]) / 2;
     const lm = X.map((x, i) => ({ x: 0.5 + (x / M) * 0.17 / A, y: (Y[i] / M) * 0.17 + 0.45 - (FEET.includes(i) || KNEES.includes(i) ? liftImg * (FEET.includes(i) ? 1 : 0.5) : 0), z: 0, visibility: ref[i].visibility ? 0.95 : 0 }));
     const wl = X.map((x, i) => ({ x: x - hx, y: Y[i] - hy, z: Z[i], visibility: ref[i].visibility ? 0.95 : 0 }));
@@ -67,7 +72,8 @@ RUN = """async ([name, extra, ms]) => {
   const t0 = performance.now();
   await new Promise((res) => { const f = () => { const t = performance.now() - t0;
     const L = a.bonePos('LeftFoot'), R = a.bonePos('RightFoot'), H = a.bonePos('Hips');
-    out.push({ t, gy: a.group.position.y, gx: a.group.position.x, Lx: L.x, Ly: L.y, Rx: R.x, Ry: R.y, Hy: H.y, Hx: H.x });
+    const q = a.body.b.Head.bone.getWorldQuaternion(new a.group.quaternion.constructor()); window.__q0 = window.__q0 || (window.__q0 = q.clone());
+    out.push({ t, headAng: q.angleTo(window.__q0) * 180 / Math.PI, gy: a.group.position.y, gx: a.group.position.x, Lx: L.x, Ly: L.y, Rx: R.x, Ry: R.y, Hy: H.y, Hx: H.x });
     if (t < ms) requestAnimationFrame(f); else res(); }; f(); });
   return out;
 }"""
@@ -107,6 +113,16 @@ try:
         kicked, planted = ("L", "R") if spread(late, "Lx") > spread(late, "Rx") else ("R", "L")
         check("kicking one leg out sideways -> the character does not slide (planted foot x spread < 3 cm, group x spread < 3 cm)", spread(late, planted + "x") < 0.03 and spread(late, "gx") < 0.03, f"planted {planted}: {spread(late, planted+'x'):.3f}, kicked {kicked}: {spread(late, kicked+'x'):.3f}, group {spread(late,'gx'):.3f}")
         check("kicking: the kicked foot really lifts and swings out (shows the kick) while the planted foot stays on the floor and the hips stay level (< 3 cm)", spread(late, kicked + "y") > 0.1 and spread(late, kicked + "x") > 0.2 and spread(late, planted + "y") < 0.02 and spread(late, "Hy") < 0.03, f"kicked y {spread(late, kicked+'y'):.3f} x {spread(late, kicked+'x'):.3f}; planted y {spread(late, planted+'y'):.3f}; hips {spread(late,'Hy'):.3f}")
+
+        page.evaluate("window.__q0 = null")
+        st2 = run("stand", ms=800)
+        tn = run("turn", ms=3500)
+        check("the head stays steady and faces the screen while the player turns her head ±50° (head bone rotates < 3° from standing)", max(r["headAng"] for r in tn) < 3.0, f"max head rotation {max(r['headAng'] for r in tn):.2f} deg")
+
+        page.evaluate("window.__dm.stage.avatar.retarget.lockFace = false")
+        tn2 = run("turn", ms=3500)
+        page.evaluate("window.__dm.stage.avatar.retarget.lockFace = true")
+        check("control experiment: with the lock switched off the same movement DOES turn the head (> 15°), so the test is meaningful", max(r["headAng"] for r in tn2) > 15, f"{max(r['headAng'] for r in tn2):.1f} deg")
 
         sq = run("squat", ms=3800)
         check("squatting: the hips really go down (> 12 cm) while both feet stay on the floor (ankle y spread < 4 cm: it is the ankle bone, the foot tilts) and do not slide (< 3 cm)", spread(sq, "Hy") > 0.12 and spread(sq, "Ly") < 0.04 and spread(sq, "Ry") < 0.04 and spread([r for r in sq if r["t"] > 500], "Lx") < 0.03, f"hips {spread(sq,'Hy'):.3f}, ankle y L {spread(sq,'Ly'):.3f} R {spread(sq,'Ry'):.3f}, foot x {spread([r for r in sq if r['t'] > 500],'Lx'):.3f}")

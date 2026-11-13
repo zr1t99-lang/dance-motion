@@ -227,7 +227,8 @@ export class GlbBody {
     if (hu.lengthSq() < 1e-6 || hu.normalize().y < 0.55) hu.set(torso.x * 0.5, 1, torso.z * 0.5).normalize();
     const face = new THREE.Vector3(fe.face.x, fe.face.y, fe.face.z);
     const qHeadRaw = frameUF(hu, face, new THREE.Quaternion());
-    const qHead = qChest.clone().slerp(qHeadRaw, 0.8);
+    // the player's head stays steady (faces the screen); the coaches' head blends a little with the chest as before
+    const qHead = dt !== undefined ? qHeadRaw : qChest.clone().slerp(qHeadRaw, 0.8);
     this.frameTo("Neck", qChest.clone().slerp(qHead, 0.45), rc.clone().slerp(this.restFrame.head, 0.45));
     this.frameTo("Head", qHead, this.restFrame.head);
 

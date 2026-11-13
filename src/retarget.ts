@@ -48,6 +48,8 @@ const UPV: V3 = { x: 0, y: 1, z: 0 };
 export class Retargeter {
   /** Direction the face points (unit). */
   face: V3 = { x: 0, y: 0, z: 1 };
+  /** Keep the head facing the screen (like the coaches): the nose never turns the character's head left/right. */
+  lockFace = false;
   footL: V3 = { x: 0, y: 0, z: 1 };
   footR: V3 = { x: 0, y: 0, z: 1 };
   private d: V3 = { x: 0, y: 0, z: 0 };
@@ -106,6 +108,7 @@ export class Retargeter {
       }
     }
     // blend toward the new facing a little each call so a flickering nose doesn't spin the head
+    if (this.lockFace) { fx = 0; fy = 0; fz = 1; this.face.x = 0; this.face.y = 0; this.face.z = 1; }
     this.face.x += (fx - this.face.x) * 0.5;
     this.face.y += (fy - this.face.y) * 0.5;
     this.face.z += (fz - this.face.z) * 0.5;

@@ -324,6 +324,15 @@ import { Stance, STANCE } from "../dist/stance.js";
     assert.ok(rt.footL.x > 0.9, "footL.x " + rt.footL.x);
   });
 
+  test("lockFace: the head keeps facing the screen however the nose/ears turn", () => {
+    const rt = new Retargeter(); rt.lockFace = true;
+    const J = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 })); const out = J.map(() => ({ x: 0, y: 0, z: 0 }));
+    J[11] = { x: 0.2, y: 0.5, z: 0 }; J[12] = { x: -0.2, y: 0.5, z: 0 }; J[23] = { x: 0.1, y: 0, z: 0 }; J[24] = { x: -0.1, y: 0, z: 0 };
+    J[7] = { x: 0.07, y: 0.72, z: 0 }; J[8] = { x: -0.07, y: 0.72, z: 0 }; J[0] = { x: 0.5, y: 0.72, z: 0.1 }; // nose far to the side
+    const seen = Array(33).fill(true);
+    for (let i = 0; i < 20; i++) rt.solve(J, out, seen);
+    assert.ok(rt.face.z > 0.999 && Math.abs(rt.face.x) < 1e-6, `face ${rt.face.x},${rt.face.z}`);
+  });
   const img = (ankleY, hipX = 0.5) => {
     const p = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility: 1 }));
     p[11] = { x: hipX + 0.03, y: 0.3, visibility: 1 }; p[12] = { x: hipX - 0.03, y: 0.3, visibility: 1 };

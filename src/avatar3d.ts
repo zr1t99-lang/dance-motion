@@ -377,7 +377,7 @@ export class Avatar {
   private stance = new Stance();
   private seen = new Array(POSE_LANDMARK_COUNT).fill(false);
   private yDown = true;
-  private retarget = new Retargeter();
+  private retarget = Object.assign(new Retargeter(), { lockFace: true });
   private loco = new Locomotion();
   /** Retargeted (fixed bone length) skeleton that is actually drawn for the player. */
   private rt: any[] = Array.from({ length: POSE_LANDMARK_COUNT }, () => new THREE.Vector3());

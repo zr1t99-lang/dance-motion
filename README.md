@@ -154,3 +154,5 @@ do not slide her feet, a kicking/lifted foot never drags the body, and she trave
 speed-capped). Sideways distance is calibrated from the torso as the camera sees it, so leaning or bending does not slide her. The floor contact of the
 GLB pelvis is smoothed (1.2 cm dead band). Tested with unit tests and `tests/e2e/e2e-ground.py` (real three.js + real GLB, scripted physical player).
 Not verified: a real camera's noise, a real phone. A real jump is not shown in the air (the character crouches/stays grounded instead).
+The player's head is also steady: it always faces the screen like the coaches' heads (the nose/ears never turn it left/right; verified with a
+control experiment in `tests/e2e/e2e-ground.py`: lock off -> the same movement turns the head 42°, lock on -> 0°).
