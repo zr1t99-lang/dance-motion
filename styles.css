@@ -54,10 +54,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .menu-title .alt { color: var(--blue); text-shadow: 0 0 calc(var(--u) * 2) var(--blue), 0 0 calc(var(--u) * 5) #2b6bff; }
 .menu-sub { color: #cdbbff; font-size: calc(var(--u) * 1.6); margin: calc(var(--u) * 0.8) 0 calc(var(--u) * 2.4); letter-spacing: 0.2em; text-transform: uppercase; }
 .menu-cards { display: flex; gap: calc(var(--u) * 2.4); }
-.card { width: calc(var(--u) * 30); padding: calc(var(--u) * 2) calc(var(--u) * 2.2); border-radius: calc(var(--u) * 1.8); text-align: left; background: var(--glass); border: calc(var(--u) * 0.25) solid; transition: transform 0.12s; }
+.card { width: calc(var(--u) * 28); padding: calc(var(--u) * 2) calc(var(--u) * 2.2); border-radius: calc(var(--u) * 1.8); text-align: left; background: var(--glass); border: calc(var(--u) * 0.25) solid; transition: transform 0.12s; }
 .card:active { transform: scale(0.97); }
 .card.pink { border-color: var(--pink); box-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 61, 242, 0.55), inset 0 0 calc(var(--u) * 2) rgba(255, 61, 242, 0.2); }
 .card.blue { border-color: var(--blue); box-shadow: 0 0 calc(var(--u) * 2.4) rgba(45, 215, 255, 0.5), inset 0 0 calc(var(--u) * 2) rgba(45, 215, 255, 0.18); }
+.card.green { border-color: #3dff9a; box-shadow: 0 0 calc(var(--u) * 2.4) rgba(61, 255, 154, 0.5), inset 0 0 calc(var(--u) * 2) rgba(61, 255, 154, 0.18); }
 .card-t { font-size: calc(var(--u) * 2.5); font-weight: 900; font-style: italic; margin-bottom: calc(var(--u) * 0.7); }
 .card-d { font-size: calc(var(--u) * 1.4); color: #d6c8ff; line-height: 1.4; }
 .menu-row { display: flex; gap: calc(var(--u) * 1.2); margin-top: calc(var(--u) * 2.4); }

@@ -32,10 +32,13 @@ export interface SongDef {
   choreo: ChoreoOptions;
   scoring: ScoringConfig;
   /** "synth" = the song is rendered by src/synth.ts; "beat" = the plain practice metronome beat. */
-  audio: "synth" | "beat";
+  audio: "synth" | "beat" | "file";
   /**
    * Optional real vocal stem (mp3/wav), exactly aligned to the instrumental (same 128 BPM grid, starting at beat 0).
    * If the file exists it is played on top of the instrumental. See SONG_BRIEF.md.
    */
   vocalsUrl?: string;
+  /** audio:"file": local-only audio file tried at this URL (git-ignored); the player can also pick a file. */
+  audioUrl?: string;
+  audioOffset?: number;
 }

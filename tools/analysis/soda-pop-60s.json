@@ -1,0 +1,170 @@
+{
+ "source": "first 60 s of the supplied Zumba video (155 s, 1920x1080, 30 fps, AAC 48 kHz). The audio/video are NOT in the repo.",
+ "method": {
+  "tempo": "MEASURED: onset-envelope grid fit on the audio (ffmpeg + numpy) -> 126 BPM, first beat 0.27 s",
+  "cuts_and_black": "MEASURED: frame differencing at 30 fps",
+  "moves": "JUDGED BY EYE from contact sheets (2 frames/s). No pose model was available offline, so there was no automatic skeleton extraction. Each move is the nearest of the game's trackable poses, not a frame-accurate transcription."
+ },
+ "bpm": 126,
+ "firstBeatSec": 0.27,
+ "danceStartsSec": 11,
+ "cutsSec": [
+  4.1,
+  5.8,
+  7.5,
+  9.6,
+  10.9,
+  27,
+  29.4,
+  36.7,
+  42,
+  43.7,
+  51.9,
+  57,
+  58.8
+ ],
+ "blackSec": [
+  [
+   27,
+   29.3
+  ],
+  [
+   42,
+   43.6
+  ]
+ ],
+ "moves": [
+  {
+   "beat": 24,
+   "timeSec": 11.7,
+   "pose": "OUT",
+   "seen": "11.7 s: lead opens both arms wide, group standing"
+  },
+  {
+   "beat": 28,
+   "timeSec": 13.6,
+   "pose": "STEP_L",
+   "seen": "13.6 s: weight shift to the side, hands low"
+  },
+  {
+   "beat": 32,
+   "timeSec": 15.51,
+   "pose": "SWING_R",
+   "seen": "15.5 s: big stride to the right with arm swing"
+  },
+  {
+   "beat": 36,
+   "timeSec": 17.41,
+   "pose": "CACTUS",
+   "seen": "17.4 s: bounce, hands bent in front (nearest distinct pose: elbows bent)"
+  },
+  {
+   "beat": 40,
+   "timeSec": 19.32,
+   "pose": "SWING_L",
+   "seen": "19.3 s: wide stride to the left, arm out"
+  },
+  {
+   "beat": 44,
+   "timeSec": 21.22,
+   "pose": "PT_R",
+   "seen": "21.2-22 s: step and point at the camera"
+  },
+  {
+   "beat": 48,
+   "timeSec": 23.13,
+   "pose": "V_UP",
+   "seen": "23.1 s: close-up, both arms up in a V, shoulders"
+  },
+  {
+   "beat": 52,
+   "timeSec": 25.03,
+   "pose": "CACTUS",
+   "seen": "25.0 s: close-up, elbows bent, double arm pump"
+  },
+  {
+   "beat": 64,
+   "timeSec": 30.75,
+   "pose": "SKY_R",
+   "seen": "30.7 s: close-up, right arm reaches up diagonally"
+  },
+  {
+   "beat": 68,
+   "timeSec": 32.65,
+   "pose": "STEP_R",
+   "seen": "32.6 s: group steps to the right"
+  },
+  {
+   "beat": 72,
+   "timeSec": 34.56,
+   "pose": "OUT",
+   "seen": "34.6 s: wide crouched stance, arms out"
+  },
+  {
+   "beat": 76,
+   "timeSec": 36.46,
+   "pose": "PT_L",
+   "seen": "36.5 s: close-up, one arm out to the side"
+  },
+  {
+   "beat": 80,
+   "timeSec": 38.37,
+   "pose": "STEP_R",
+   "seen": "38.4 s: knee lifts, side shift"
+  },
+  {
+   "beat": 84,
+   "timeSec": 40.27,
+   "pose": "DISCO_L",
+   "seen": "40.3 s: wide stance, arm diagonal up"
+  },
+  {
+   "beat": 92,
+   "timeSec": 44.08,
+   "pose": "STEP_L",
+   "seen": "44.1 s: group bounce, weight to the left"
+  },
+  {
+   "beat": 96,
+   "timeSec": 45.98,
+   "pose": "STEP_R",
+   "seen": "46.0 s: group bounce, weight to the right"
+  },
+  {
+   "beat": 100,
+   "timeSec": 47.89,
+   "pose": "SWEEP_R",
+   "seen": "47.9 s: wide stance, arms sweep diagonally"
+  },
+  {
+   "beat": 104,
+   "timeSec": 49.79,
+   "pose": "OUT",
+   "seen": "49.8 s: arms out in a wide stance"
+  },
+  {
+   "beat": 108,
+   "timeSec": 51.7,
+   "pose": "DISCO_R",
+   "seen": "51.7 s: one arm up, one low, sway (nearest distinct pose)"
+  },
+  {
+   "beat": 112,
+   "timeSec": 53.6,
+   "pose": "SQUAT",
+   "seen": "53.6 s: new camera angle, wide knees-bent stance"
+  },
+  {
+   "beat": 116,
+   "timeSec": 55.51,
+   "pose": "SQUAT",
+   "seen": "55.5 s: same stance, sway"
+  },
+  {
+   "beat": 120,
+   "timeSec": 57.41,
+   "pose": "STEP_R",
+   "seen": "57.4 s: stride to the right"
+  }
+ ]
+}

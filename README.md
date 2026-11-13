@@ -109,3 +109,12 @@ The e2e test boots the real `index.html` + `dist/`, uses Chrome's fake *camera d
 - Scoring is 2D (image plane): moves are designed to be seen face-on, since an arm pointing at the camera is foreshortened. One player, front-facing.
 - Leg poses are weighted less than arm poses because they are harder to read face-on.
 - Original choreography, visuals and beat only: no third-party songs or assets.
+
+## Dance Control (private 60 s test)
+
+A third mode next to Dance Copy and Motion Mirror. **There is no dancer to copy**: the character on screen is the player, driven only by the camera pose, and a timeline of 22 moves (icons under "Coming up") is scored on the beat. Standing still scores 0 and the character does not dance by itself.
+
+- Reference: the first 60 s of a supplied Zumba video. Analysis: `tools/analysis/soda-pop-60s.json` (tempo/beat grid and cuts were **measured**; which move is danced when was **judged by eye**, not extracted automatically; see `src/songs/zumbaControl.ts`).
+- Audio: **not in this repository** (copyrighted; `private/` is git-ignored). The mode needs the 60 s clip, which the player picks in the ready panel (it stays on the device) or which is read from `private/zumba60.mp3` when running locally. Replace or license before any release.
+- Tests: `node tests/control-tests.mjs`, `python3 tests/e2e/e2e-control.py` (needs the local clip).
+- Not done: the character does not play a separate canned animation when a move is recognised; it mirrors the player live. It is the flat 2D art from the character sheet, not a rigged 3D model.

@@ -3,10 +3,13 @@
 // and scorer can be exercised offline. The shipped game never contains this file.
 import { buildRefPose, NEUTRAL, Choreography } from "/dist/choreography.js";
 import { buildSunshineShake } from "/dist/songs/sunshineShake.js";
+import { buildZumbaControl } from "/dist/songs/zumbaControl.js";
 
 const choreo = new Choreography();
 const songDef = buildSunshineShake();
 const songChoreo = new Choreography(songDef.moves, songDef.choreo);
+const ctlDef = buildZumbaControl();
+const ctlChoreo = new Choreography(ctlDef.moves, ctlDef.choreo);
 const empty = () => Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }));
 
 function toCamera(ref, scale = 0.17, cx = 0.5, cy = 0.45, aspect = 4 / 3) {
@@ -32,9 +35,10 @@ export const PoseLandmarker = {
         const now = performance.now();
         let spec;
         if (s.mode === "neutral") spec = NEUTRAL;
+        else if (s.mode === "fixed") spec = { ...NEUTRAL, ...s.pose };
         else {
           const t = (now - s.t0) / 1000 - (s.lag || 0); // follow the instructor with a small lag
-          spec = (s.song ? songChoreo : choreo).specAt(Math.max(0, t));
+          spec = (s.song === 'control' ? ctlChoreo : s.song ? songChoreo : choreo).specAt(Math.max(0, t));
         }
         const ref = buildRefPose(spec);
         const noise = s.noise || 0;

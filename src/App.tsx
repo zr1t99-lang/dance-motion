@@ -10,6 +10,7 @@ import { HAIR_COLORS, captureCharacter, faceCanvas, loadCharacter, saveCharacter
 import { MusicPlayer, type MusicStatus } from "./songPlayer.js";
 import { buildSunshineShake } from "./songs/sunshineShake.js";
 import { buildTestRoutine } from "./songs/testRoutine.js";
+import { buildZumbaControl } from "./songs/zumbaControl.js";
 import type { SongDef } from "./songs/types.js";
 import { Choreography, buildRefPose, refComparable } from "./choreography.js";
 import { BODY_GROUPS, computeFeatures, groupInFrame, type Features } from "./poseMath.js";
@@ -102,7 +103,7 @@ function StageCanvas(props: {
 
 /* -------------------------------------------------------------- screens */
 
-function Menu(props: { onStart: (m: "mirror" | "challenge") => void; onSettings: () => void; onTV: () => void; onFullscreen: () => void }) {
+function Menu(props: { onStart: (m: "mirror" | "challenge" | "control") => void; onSettings: () => void; onTV: () => void; onFullscreen: () => void }) {
   const insecure = !window.isSecureContext;
   return (
     <div className="screen menu">
@@ -110,7 +111,7 @@ function Menu(props: { onStart: (m: "mirror" | "challenge") => void; onSettings:
         <span>DANCE</span>
         <span className="alt">MOTION</span>
       </div>
-      <div className="menu-sub">Real camera body-tracking · prototype · build art1</div>
+      <div className="menu-sub">Real camera body-tracking · prototype · build ctl1</div>
       {insecure && (
         <div className="warn">
           This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README).
@@ -120,6 +121,10 @@ function Menu(props: { onStart: (m: "mirror" | "challenge") => void; onSettings:
         <button className="card pink" onClick={() => props.onStart("challenge")}>
           <div className="card-t">DANCE COPY</div>
           <div className="card-d">Copy the dancer to an original song. Scored on joint angles, position and timing.</div>
+        </button>
+        <button className="card green" onClick={() => props.onStart("control")}>
+          <div className="card-t">DANCE CONTROL</div>
+          <div className="card-d">You drive the dancer with your real moves, on the beat. Private 60 s test (needs your own audio file).</div>
         </button>
         <button className="card blue" onClick={() => props.onStart("mirror")}>
           <div className="card-t">MOTION MIRROR</div>
@@ -362,14 +367,17 @@ function ChallengeScreen(props: {
   onSettings: () => void;
   onExit: () => void;
   onFatal: (e: any) => void;
+  /** Dance Control: no dancers perform; the character is driven only by the player's camera pose. */
+  control?: boolean;
 }) {
   const { engine, settings } = props;
-  const songs = useMemo(() => [buildSunshineShake(), buildTestRoutine()] as SongDef[], []);
+  const control = !!props.control;
+  const songs = useMemo(() => (control ? [buildZumbaControl()] : [buildSunshineShake(), buildTestRoutine()]) as SongDef[], [control]);
   const [songId, setSongId] = useState(songs[0].id);
   const song = songs.find((x) => x.id === songId) ?? songs[0];
   const choreo = useMemo(() => new Choreography(song.moves, song.choreo), [song]);
   const scored = choreo.scoredMoves;
-  const endT = song.audio === "synth" ? song.totalBeats * song.beatSec : choreo.duration;
+  const endT = song.audio === "beat" ? choreo.duration : song.totalBeats * song.beatSec;
   const musicRef = useRef(null as MusicPlayer | null);
   if (!musicRef.current) musicRef.current = new MusicPlayer();
   const [music, setMusic] = useState({ instrumental: "idle", vocals: false } as MusicStatus);
@@ -478,7 +486,7 @@ function ChallengeScreen(props: {
   };
 
   const start = () => {
-    scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: song.audio === "synth" ? Math.max(song.scoring.timingTolerance, settings.tolerance) : settings.tolerance });
+    scorerRef.current = new ChallengeScorer(choreo, { ...song.scoring, timingTolerance: song.audio === "beat" ? settings.tolerance : control ? song.scoring.timingTolerance : Math.max(song.scoring.timingTolerance, settings.tolerance) });
     startRef.current = performance.now() + choreo.leadIn * 1000 + 100; // +100 ms: audio is scheduled slightly ahead
     lastJudge.current = null;
     keyRef.current = 0;
@@ -626,13 +634,14 @@ function ChallengeScreen(props: {
     <>
       <StageCanvas
         style={PLAYER_STYLE}
-        dancers={[INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE]}
+        dancers={control ? [] : [INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE]}
         cutout
         reflections={settings.reflections}
         onStage={(s) => {
           stageRef.current = s;
           if (s) {
             s.onFrame = (dt, now) => frameRef.current(dt, now);
+            if (control) s.avatar.setLateralLimit(0.8);
             applyLook(s);
           }
         }}
@@ -698,9 +707,9 @@ function ChallengeScreen(props: {
           <div className="next-n">{upcoming[0] ? upcoming[0].name : ""}</div>
         </div>
 
-        <div className="copy-tag l">COPY ME ▼</div>
+        {!control && <div className="copy-tag l">COPY ME ▼</div>}
         <div className="copy-tag c">YOU ▼</div>
-        <div className="copy-tag r">COPY ME ▼</div>
+        {!control && <div className="copy-tag r">COPY ME ▼</div>}
         {lost && playing && <div className="lost-banner">TRACKING LOST</div>}
         {soundMsg && phase !== "ready" && <div className="wait-banner" onClick={() => setSoundMsg("")}>{soundMsg}</div>}
 
@@ -721,7 +730,7 @@ function ChallengeScreen(props: {
         {phase === "ready" && (
           <div className="overlay clear">
             <div className="panel ready">
-              <h2>Dance Copy</h2>
+              <h2>{control ? "Dance Control" : "Dance Copy"}</h2>
               <div className="ready-cols">
               <div className="rc-left">
               <div className="song-pick">
@@ -737,7 +746,26 @@ function ChallengeScreen(props: {
                 {music.instrumental === "error" && `Music failed to build: ${music.error}. `}
                 {song.audio === "synth" && music.instrumental === "ready" && (music.vocals ? "Music + sung vocals loaded. " : "Music ready (instrumental + synth melody — no sung vocals in this build; the lyrics are shown on screen). ")}
               </p>
-              {song.audio === "synth" && (
+              {song.audio === "file" && (
+                <div className="char-box">
+                  <div className="char-head">
+                    <b>🎵 Audio file (private test)</b>
+                    <span className="hint">stays on this device</span>
+                  </div>
+                  <p className="hint">{music.fileInfo ? `Loaded: ${music.fileInfo}.` : "Choose your 60-second clip (mp3/m4a/wav). Only the first 60 s are used. It is never uploaded or stored."}</p>
+                  <input
+                    type="file"
+                    accept="audio/*,video/mp4"
+                    onChange={async (e: any) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setMusic({ instrumental: "rendering", vocals: false });
+                      setMusic({ ...(await musicRef.current!.loadFile(f)) });
+                    }}
+                  />
+                </div>
+              )}
+              {song.audio !== "beat" && (
                 <div>
                   <button
                     className="btn ghost small"
@@ -750,6 +778,7 @@ function ChallengeScreen(props: {
                   {soundMsg && <p className="hint">{soundMsg}</p>}
                 </div>
               )}
+              {!control && (
               <div className="char-box">
                 <div className="char-head">
                   <b>🎨 Coaches</b>
@@ -772,6 +801,7 @@ function ChallengeScreen(props: {
                   ))}
                 </div>
               </div>
+              )}
               <div className="char-box">
                 <div className="char-head">
                   <b>👤 Your character</b>
@@ -808,10 +838,16 @@ function ChallengeScreen(props: {
               </div>
               </div>
               <div className="rc-right">
+              {control ? (
+                <p><b>How to play (Dance Control):</b> there is <b>no dancer to copy</b>. The character on screen <b>is you</b>: it moves only when you move. The small green figure under <b>Coming up</b> shows the move to do on the next beat. Hit it on the beat to score; standing still scores nothing. Stand where the camera sees your <b>whole body</b>, arms relaxed by your sides during the countdown. Side steps move the character left and right.</p>
+              ) : (
+              <>
               <p><b>How to play:</b> the <b>two dancers on the sides</b> are the instructors: copy them. The character in the <b>middle is you</b> (it follows your camera). The small green figures at the right are only a preview of the <i>next</i> move.</p>
               <p>Stand where the camera sees your <b>whole body</b>. During the countdown, stand relaxed with your arms by your sides: the game records your neutral stance so body size, height and position never count against you.</p>
               <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing. {song.audio === "synth" ? "You copy AFTER the dancers: you have about 1.7 s from the moment they strike a pose, so no need to be at the same time as them." : `Timing window ±${settings.tolerance.toFixed(1)} s.`}</p>
-              <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error"} onClick={start}>START</button>
+              </>
+              )}
+              <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error" || !!music.needsFile} onClick={start}>START</button>
               </div>
               </div>
             </div>
@@ -877,7 +913,7 @@ export function App() {
   const engine = useMemo(() => new Engine(), []);
   const [settings, setSettingsState] = useState(loadSettings);
   const [screen, setScreen] = useState("menu" as Screen);
-  const [mode, setMode] = useState("challenge" as "mirror" | "challenge");
+  const [mode, setMode] = useState("challenge" as "mirror" | "challenge" | "control");
   const [loadMsg, setLoadMsg] = useState("");
   const [err, setErr] = useState(null as AppError | null);
   const [showSettings, setShowSettings] = useState(false);
@@ -935,7 +971,7 @@ export function App() {
     setScreen("menu");
   };
 
-  const begin = async (m: "mirror" | "challenge") => {
+  const begin = async (m: "mirror" | "challenge" | "control") => {
     setMode(m);
     setErr(null);
     setScreen("loading");
@@ -1011,7 +1047,7 @@ export function App() {
             engine={engine}
             settings={settings}
             facing={settings.facing}
-            onDone={() => setScreen(mode)}
+            onDone={() => setScreen(mode === "mirror" ? "mirror" : "challenge")}
             onBack={goMenu}
             onSwitch={switchCamera}
           />
@@ -1019,7 +1055,7 @@ export function App() {
         {screen === "mirror" && (
           <MirrorScreen {...common} onMirror={() => setSettings({ ...settings, mirror: !settings.mirror })} />
         )}
-        {screen === "challenge" && <ChallengeScreen {...common} />}
+        {screen === "challenge" && <ChallengeScreen key={mode} {...common} control={mode === "control"} />}
 
         {showSettings && (
           <SettingsPanel

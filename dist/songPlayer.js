@@ -102,8 +102,44 @@ export class MusicPlayer {
     srcs = [];
     status = { instrumental: "idle", vocals: false };
     vocalBuf = null;
+    fileBuf = null;
+    /** Decode an audio (or video) file the player picked. Stays in memory only: nothing is stored or uploaded. */
+    async loadFile(f) {
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            const tmp = new AC();
+            this.fileBuf = await tmp.decodeAudioData(await f.arrayBuffer());
+            tmp.close();
+            this.status = { instrumental: "ready", vocals: false, fileInfo: `${f.name} (${this.fileBuf.duration.toFixed(1)} s)` };
+        }
+        catch (e) {
+            this.fileBuf = null;
+            this.status = { instrumental: "error", vocals: false, error: "Could not decode that file as audio. Pick the .mp3/.m4a/.wav clip. " + String(e?.message ?? e) };
+        }
+        return this.status;
+    }
     /** Prepare the song's audio (render instrumental, look for an optional vocal stem). */
     async prepare(def) {
+        if (def.audio === "file") {
+            if (!this.fileBuf && def.audioUrl) {
+                try {
+                    const res = await fetch(def.audioUrl);
+                    if (res.ok && !(res.headers.get("content-type") ?? "").includes("text/html")) {
+                        const AC = window.AudioContext || window.webkitAudioContext;
+                        const tmp = new AC();
+                        this.fileBuf = await tmp.decodeAudioData(await res.arrayBuffer());
+                        tmp.close();
+                    }
+                }
+                catch {
+                    this.fileBuf = null;
+                }
+            }
+            this.status = this.fileBuf
+                ? { instrumental: "ready", vocals: false, fileInfo: `${def.audioUrl} (${this.fileBuf.duration.toFixed(1)} s)` }
+                : { instrumental: "idle", vocals: false, needsFile: true };
+            return this.status;
+        }
         if (def.audio !== "synth") {
             this.status = { instrumental: "ready", vocals: false };
             return this.status;
@@ -144,16 +180,22 @@ export class MusicPlayer {
             this.beat.start();
             return;
         }
-        if (!rendered)
-            return;
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC)
             return;
-        const ctx = new AC({ sampleRate: rendered.sampleRate });
+        if (def.audio === "file" ? !this.fileBuf : !rendered)
+            return;
+        const ctx = def.audio === "file" ? new AC() : new AC({ sampleRate: rendered.sampleRate });
         this.ctx = ctx;
-        const buf = ctx.createBuffer(2, rendered.left.length, rendered.sampleRate);
-        buf.copyToChannel(rendered.left, 0);
-        buf.copyToChannel(rendered.right, 1);
+        let buf;
+        if (def.audio === "file")
+            buf = this.fileBuf;
+        else {
+            buf = ctx.createBuffer(2, rendered.left.length, rendered.sampleRate);
+            buf.copyToChannel(rendered.left, 0);
+            buf.copyToChannel(rendered.right, 1);
+        }
+        const maxDur = def.audio === "file" ? def.totalBeats * def.beatSec + 0.5 : undefined; // only the first 60 s of a longer file
         const lat = Math.max(0, ctx.outputLatency || ctx.baseLatency || 0);
         let when = ctx.currentTime + (startPerf - performance.now()) / 1000 - lat + offsetMs / 1000;
         const mk = (b, gain) => {
@@ -167,7 +209,10 @@ export class MusicPlayer {
                 skip = ctx.currentTime - when;
                 when = ctx.currentTime;
             }
-            s.start(when, skip);
+            if (maxDur !== undefined)
+                s.start(when, skip, Math.max(0, maxDur - skip));
+            else
+                s.start(when, skip);
             this.srcs.push(s);
         };
         const w0 = when;
@@ -186,13 +231,28 @@ export class MusicPlayer {
     async preview(def) {
         this.stop();
         this.keepAlive = unlockAudioSession();
-        if (def.audio !== "synth")
+        if (def.audio === "beat")
             return "This routine only has a click beat; it plays when you press START.";
-        if (!rendered)
-            return "The music is not ready yet.";
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC)
             return "This browser has no Web Audio support.";
+        if (def.audio === "file") {
+            if (!this.fileBuf)
+                return "Choose the audio file first.";
+            const c = new AC();
+            this.ctx = c;
+            await c.resume();
+            if (c.state !== "running")
+                return "The browser blocked the sound (check volume and the silent switch).";
+            const sr = c.createBufferSource();
+            sr.buffer = this.fileBuf;
+            sr.connect(c.destination);
+            sr.start(0, 11, 6);
+            this.srcs.push(sr);
+            return "Playing 6 s of your clip… if you hear nothing: raise the volume and switch off the silent mode.";
+        }
+        if (!rendered)
+            return "The music is not ready yet.";
         const ctx = new AC({ sampleRate: rendered.sampleRate });
         this.ctx = ctx;
         await ctx.resume();
