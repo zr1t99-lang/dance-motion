@@ -265,3 +265,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .coach-row { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 0.5); margin-top: calc(var(--u) * 0.4); }
 .chip { padding: calc(var(--u) * 0.4) calc(var(--u) * 0.9); border-radius: calc(var(--u) * 1.4); border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.07); font-size: calc(var(--u) * 1.15); }
 .chip.sel { border-color: var(--pink); background: rgba(255, 61, 242, 0.25); }
+
+/* Arabic / RTL */
+.app[dir="rtl"] { font-family: "Segoe UI", "Geeza Pro", "Noto Sans Arabic", Tahoma, system-ui, sans-serif; }
+.app[dir="rtl"] .card, .app[dir="rtl"] .panel, .app[dir="rtl"] .panel p, .app[dir="rtl"] .panel li { text-align: right; }

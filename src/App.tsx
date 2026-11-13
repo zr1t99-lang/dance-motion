@@ -15,6 +15,7 @@ import type { SongDef } from "./songs/types.js";
 import { Choreography, buildRefPose, refComparable } from "./choreography.js";
 import { BODY_GROUPS, computeFeatures, groupInFrame, type Features } from "./poseMath.js";
 import { ChallengeScorer, type MoveResult } from "./scoring.js";
+import { setLang, tr, isAr } from "./i18n.js";
 import { loadSettings, saveSettings, type Settings } from "./settings.js";
 import { LM, type Facing, type Judgment } from "./types.js";
 import { DebugPanel, PreviewBox, SettingsPanel, Stars, StickFigure, Toast, TVPanel, useStageBox } from "./ui.js";
@@ -103,40 +104,41 @@ function StageCanvas(props: {
 
 /* -------------------------------------------------------------- screens */
 
-function Menu(props: { onStart: (m: "mirror" | "challenge" | "control") => void; onSettings: () => void; onTV: () => void; onFullscreen: () => void }) {
+function Menu(props: { lang: "en" | "ar"; onLang: () => void; onStart: (m: "mirror" | "challenge" | "control") => void; onSettings: () => void; onTV: () => void; onFullscreen: () => void }) {
   const insecure = !window.isSecureContext;
   return (
     <div className="screen menu">
-      <div className="menu-title">
+      <div className="menu-title" dir="ltr">
         <span>DANCE</span>
         <span className="alt">MOTION</span>
       </div>
-      <div className="menu-sub">Real camera body-tracking · prototype · build ctl1</div>
+      <div className="menu-sub">{tr("Real camera body-tracking · prototype · ")}<span dir="ltr">build ar1</span></div>
       {insecure && (
         <div className="warn">
-          This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README).
+          {tr("This page is not served over HTTPS, so the browser will block the camera. Open it via HTTPS or http://localhost (see README).")}
         </div>
       )}
       <div className="menu-cards">
         <button className="card pink" onClick={() => props.onStart("challenge")}>
-          <div className="card-t">DANCE COPY</div>
-          <div className="card-d">Copy the dancer to an original song. Scored on joint angles, position and timing.</div>
+          <div className="card-t">{tr("DANCE COPY")}</div>
+          <div className="card-d">{tr("Copy the dancer to an original song. Scored on joint angles, position and timing.")}</div>
         </button>
         <button className="card green" onClick={() => props.onStart("control")}>
-          <div className="card-t">DANCE CONTROL</div>
-          <div className="card-d">You drive the dancer with your real moves, on the beat. Private 60 s test (needs your own audio file).</div>
+          <div className="card-t">{tr("DANCE CONTROL")}</div>
+          <div className="card-d">{tr("You drive the dancer with your real moves, on the beat. Private 60 s test (needs your own audio file).")}</div>
         </button>
         <button className="card blue" onClick={() => props.onStart("mirror")}>
-          <div className="card-t">MOTION MIRROR</div>
-          <div className="card-d">A 3D avatar that mirrors your body live from the camera. No pre-made animation.</div>
+          <div className="card-t">{tr("MOTION MIRROR")}</div>
+          <div className="card-d">{tr("A 3D avatar that mirrors your body live from the camera. No pre-made animation.")}</div>
         </button>
       </div>
       <div className="menu-row">
-        <button className="pill" onClick={props.onSettings}>⚙ Settings</button>
-        <button className="pill" onClick={props.onTV}>📺 TV Mode</button>
-        <button className="pill" onClick={props.onFullscreen}>⛶ Fullscreen</button>
+        <button className="pill" onClick={props.onSettings}>{tr("⚙ Settings")}</button>
+        <button className="pill" onClick={props.onTV}>{tr("📺 TV Mode")}</button>
+        <button className="pill" onClick={props.onFullscreen}>{tr("⛶ Fullscreen")}</button>
+        <button className="pill" onClick={props.onLang}>{props.lang === "ar" ? "English" : "العربية"}</button>
       </div>
-      <div className="menu-foot">The camera only starts after you tap a mode. Video never leaves your device: pose detection runs locally in the browser.</div>
+      <div className="menu-foot">{tr("The camera only starts after you tap a mode. Video never leaves your device: pose detection runs locally in the browser.")}</div>
     </div>
   );
 }
@@ -145,8 +147,8 @@ function Loading({ msg }: { msg: string }) {
   return (
     <div className="screen center">
       <div className="spinner" />
-      <div className="big-msg">{msg}</div>
-      <div className="dim">First start downloads the pose model (a few MB). Needs an internet connection.</div>
+      <div className="big-msg">{tr(msg)}</div>
+      <div className="dim">{tr("First start downloads the pose model (a few MB). Needs an internet connection.")}</div>
     </div>
   );
 }
@@ -168,13 +170,13 @@ function ErrorScreen(props: { err: AppError; onRetry: () => void; onBack: () => 
   };
   return (
     <div className="screen center">
-      <div className="err-title">{err.title}</div>
+      <div className="err-title">{tr(err.title)}</div>
       <div className="big-msg">{err.message}</div>
-      <ul className="hints">{(hints[err.kind] ?? []).map((h) => <li key={h}>{h}</li>)}</ul>
+      <ul className="hints">{(hints[err.kind] ?? []).map((h) => <li key={h}>{tr(h)}</li>)}</ul>
       {err.detail && <div className="dim mono">{err.detail}</div>}
       <div className="btn-row">
-        <button className="btn" onClick={props.onRetry}>Try again</button>
-        <button className="btn ghost" onClick={props.onBack}>Back</button>
+        <button className="btn" onClick={props.onRetry}>{tr("Try again")}</button>
+        <button className="btn ghost" onClick={props.onBack}>{tr("Back")}</button>
       </div>
     </div>
   );
@@ -202,11 +204,11 @@ function Calibration(props: {
       if (all) okSince = okSince || now;
       else okSince = 0;
       const progress = okSince ? Math.min(1, (now - okSince) / 1200) : 0;
-      let hint = "Stand back until your entire body is visible.";
-      if (lost) hint = "No body detected yet. " + hint;
-      else if (!checks[5] || !checks[6]) hint = "Step back: your knees / feet are not fully in view.";
-      else if (!checks[3] || !checks[2]) hint = "Make sure your arms are in view and not hidden.";
-      else if (all) hint = "Hold still…";
+      let hint = tr("Stand back until your entire body is visible.");
+      if (lost) hint = tr("No body detected yet. ") + hint;
+      else if (!checks[5] || !checks[6]) hint = tr("Step back: your knees / feet are not fully in view.");
+      else if (!checks[3] || !checks[2]) hint = tr("Make sure your arms are in view and not hidden.");
+      else if (all) hint = tr("Hold still…");
       setSt({ checks, progress, lost, hint });
       if (progress >= 1 && !done) {
         done = true;
@@ -219,24 +221,24 @@ function Calibration(props: {
   return (
     <div className="screen calib">
       <div className="calib-cam">
-        <PreviewBox engine={engine} mirror={props.settings.mirror} overlay={true} lost={st.lost} lostText="NO BODY DETECTED" label="Camera" className="big" />
+        <PreviewBox engine={engine} mirror={props.settings.mirror} overlay={true} lost={st.lost} lostText={tr("NO BODY DETECTED")} label={tr("Camera")} className="big" />
       </div>
       <div className="calib-side">
-        <div className="calib-title">CALIBRATION</div>
+        <div className="calib-title">{tr("CALIBRATION")}</div>
         <div className="calib-hint">{st.hint}</div>
         <div className="checks">
           {BODY_GROUPS.map((g, i) => (
             <div key={g.label} className={"check " + (st.checks[i] ? "ok" : "")}>
-              <span>{st.checks[i] ? "✓" : "○"}</span> {g.label}
+              <span>{st.checks[i] ? "✓" : "○"}</span> {tr(g.label)}
             </div>
           ))}
         </div>
         <div className="bar"><div style={{ width: st.progress * 100 + "%" }} /></div>
         <div className="btn-row">
-          <button className="btn small ghost" onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>⟲ Switch camera</button>
-          <button className="btn small ghost" onClick={props.onBack}>Back</button>
+          <button className="btn small ghost" onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>{tr("⟲ Switch camera")}</button>
+          <button className="btn small ghost" onClick={props.onBack}>{tr("Back")}</button>
         </div>
-        <div className="dim">Landmarks must be detected with confidence and inside the frame. Nothing is skipped or simulated.</div>
+        <div className="dim">{tr("Landmarks must be detected with confidence and inside the frame. Nothing is skipped or simulated.")}</div>
       </div>
     </div>
   );
@@ -299,20 +301,20 @@ function MirrorScreen(props: {
       />
       <div className="hud">
         <div className="badge top-left">
-          <div className="badge-t">MOTION MIRROR</div>
+          <div className="badge-t">{tr("MOTION MIRROR")}</div>
           <div className="badge-s">
             {info.lost ? "—" : `Confidence ${Math.round(info.conf * 100)}%`} · Cam {info.cam === null ? "n/a" : info.cam.toFixed(0)} fps · Pose {info.pose.toFixed(0)} fps
           </div>
         </div>
         <PreviewBox engine={engine} mirror={settings.mirror} overlay={settings.overlay} lost={info.lost && info.had} className="side" />
-        {info.lost && info.had && <div className="lost-banner">TRACKING LOST</div>}
-        {!info.had && <div className="wait-banner">Step into view: waiting for your body to be detected…</div>}
+        {info.lost && info.had && <div className="lost-banner">{tr("TRACKING LOST")}</div>}
+        {!info.had && <div className="wait-banner">{tr("Step into view: waiting for your body to be detected…")}</div>}
         <div className="toolbar">
-          <button onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>⟲ Camera</button>
-          <button onClick={props.onMirror}>{settings.mirror ? "Mirror: On" : "Mirror: Off"}</button>
+          <button onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>{tr("⟲ Camera")}</button>
+          <button onClick={props.onMirror}>{settings.mirror ? tr("Mirror: On") : tr("Mirror: Off")}</button>
           <button onClick={() => props.onSettings()}>⚙</button>
           <button className={props.showDebug ? "sel" : ""} onClick={props.onToggleDebug}>Debug</button>
-          <button onClick={props.onExit}>✕ Exit</button>
+          <button onClick={props.onExit}>{tr("✕ Exit")}</button>
         </div>
         {props.showDebug && <DebugPanel engine={engine} facing={props.facing} onSwitch={props.onSwitch} onClose={props.onToggleDebug} />}
       </div>
@@ -445,7 +447,7 @@ function ChallengeScreen(props: {
     }
   };
   const takePhoto = () => {
-    setCharMsg("Look straight at the camera…");
+    setCharMsg(tr("Look straight at the camera…"));
     let n = 3;
     setCharBusy(n);
     const tick = () => {
@@ -463,7 +465,7 @@ function ChallengeScreen(props: {
       }
       faceCanvas(r.character).then((cv) => {
         updateCharacter(r.character, cv);
-        setCharMsg("Done! This is your character now. Retake if you don't like it.");
+        setCharMsg(tr("Done! This is your character now. Retake if you don't like it."));
       });
     };
     window.setTimeout(tick, 1000);
@@ -652,8 +654,8 @@ function ChallengeScreen(props: {
         <div className="song">
           <div className="song-ic">♪</div>
           <div className="song-body">
-            <div className="song-t">{song.title}</div>
-            <div className="song-s">{playing ? section : song.artist}</div>
+            <div className="song-t">{tr(song.title)}</div>
+            <div className="song-s">{playing ? tr(section) : tr(song.artist)}</div>
             <div className="song-bar">
               <div className="bar"><div style={{ width: Math.min(100, (hud.t / endT) * 100) + "%" }} /></div>
               <span>{fmtTime(hud.t)} / {fmtTime(endT)}</span>
@@ -663,65 +665,65 @@ function ChallengeScreen(props: {
         {/* top-center: stars + score */}
         <div className="top-center">
           <Stars n={hud.stars} />
-          <div className="score"><small>SCORE</small> {hud.score.toLocaleString()}</div>
+          <div className="score"><small>{tr("SCORE")}</small> {hud.score.toLocaleString()}</div>
         </div>
         {/* top-right: accuracy */}
         <div className="acc">
-          <div className="acc-l">Accuracy</div>
+          <div className="acc-l">{tr("Accuracy")}</div>
           <div className="acc-v">{playing || phase === "done" ? Math.round(hud.acc) : 0}%</div>
         </div>
 
         {/* left: judgment popup + ladder */}
-        {hud.last && <div key={hud.last.key} className={"popup " + judgeColor[hud.last.j]}>{hud.last.j}{hud.last.j !== "MISS" ? "!" : ""}</div>}
+        {hud.last && <div key={hud.last.key} className={"popup " + judgeColor[hud.last.j]}>{tr(hud.last.j)}{hud.last.j !== "MISS" ? "!" : ""}</div>}
         <div className="ladder">
           {(["PERFECT", "GREAT", "GOOD", "MISS"] as Judgment[]).map((j) => (
             <div key={j} className={"lad " + judgeColor[j] + (hud.last?.j === j ? " on" : "")}>
-              {j}<b>{hud.counts[j]}</b>
+              {tr(j)}<b>{hud.counts[j]}</b>
             </div>
           ))}
         </div>
 
         {/* lyrics (original words; shown as text, they are NOT sung unless a vocal stem is shipped) */}
         {lyric && (
-          <div className="lyrics" data-who={lyric.line.who}>
+          <div className="lyrics" dir="ltr" data-who={lyric.line.who}>
             <div className="lyr-now" style={{ ["--p" as any]: Math.round(lyric.progress * 100) + "%" }}>{lyric.line.text}</div>
             {lyric.next && <div className="lyr-next">{lyric.next.text}</div>}
           </div>
         )}
 
         {/* bottom-left: combo */}
-        <div className="combo"><small>Combo</small><span key={hud.combo}>x{hud.combo}</span></div>
+        <div className="combo"><small>{tr("Combo")}</small><span key={hud.combo}>x{hud.combo}</span></div>
 
         {/* right: camera preview + next moves */}
         <PreviewBox engine={engine} mirror={settings.mirror} overlay={settings.overlay} lost={lost} className="side" />
         <div className="next">
-          <div className="next-t">Coming up</div>
+          <div className="next-t">{tr("Coming up")}</div>
           <div className="next-row">
-            {upcoming.length === 0 && <div className="dim">{phase === "done" ? "Finished" : "Last move"}</div>}
+            {upcoming.length === 0 && <div className="dim">{phase === "done" ? tr("Finished") : tr("Last move")}</div>}
             {upcoming.map((m, i) => (
               <div key={m.id} className={"next-i " + (i === 0 ? "first" : "")}>
                 <StickFigure pose={buildRefPose(m.spec)} active={i === 0} />
               </div>
             ))}
           </div>
-          <div className="next-n">{upcoming[0] ? upcoming[0].name : ""}</div>
+          <div className="next-n">{upcoming[0] ? tr(upcoming[0].name) : ""}</div>
         </div>
 
-        {!control && <div className="copy-tag l">COPY ME ▼</div>}
-        <div className="copy-tag c">YOU ▼</div>
-        {!control && <div className="copy-tag r">COPY ME ▼</div>}
-        {lost && playing && <div className="lost-banner">TRACKING LOST</div>}
+        {!control && <div className="copy-tag l">{tr("COPY ME ▼")}</div>}
+        <div className="copy-tag c">{tr("YOU ▼")}</div>
+        {!control && <div className="copy-tag r">{tr("COPY ME ▼")}</div>}
+        {lost && playing && <div className="lost-banner">{tr("TRACKING LOST")}</div>}
         {soundMsg && phase !== "ready" && <div className="wait-banner" onClick={() => setSoundMsg("")}>{soundMsg}</div>}
 
         {/* controls */}
         <div className="toolbar">
-          {phase === "playing" && <button onClick={pause}>❚❚ Pause</button>}
-          {phase === "paused" && <button onClick={resume}>▶ Play</button>}
-          {(phase === "playing" || phase === "paused" || phase === "countdown") && <button onClick={start}>↻ Restart</button>}
-          <button onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>⟲ Camera</button>
+          {phase === "playing" && <button onClick={pause}>{tr("❚❚ Pause")}</button>}
+          {phase === "paused" && <button onClick={resume}>{tr("▶ Play")}</button>}
+          {(phase === "playing" || phase === "paused" || phase === "countdown") && <button onClick={start}>{tr("↻ Restart")}</button>}
+          <button onClick={() => props.onSwitch(props.facing === "user" ? "environment" : "user")}>{tr("⟲ Camera")}</button>
           <button className={props.showDebug ? "sel" : ""} onClick={props.onToggleDebug}>Debug</button>
           <button onClick={props.onSettings}>⚙</button>
-          <button onClick={props.onExit}>✕ Exit</button>
+          <button onClick={props.onExit}>{tr("✕ Exit")}</button>
         </div>
 
         {props.showDebug && <DebugPanel engine={engine} getExtra={getExtra} facing={props.facing} onSwitch={props.onSwitch} onClose={props.onToggleDebug} />}
@@ -730,29 +732,29 @@ function ChallengeScreen(props: {
         {phase === "ready" && (
           <div className="overlay clear">
             <div className="panel ready">
-              <h2>{control ? "Dance Control" : "Dance Copy"}</h2>
+              <h2>{tr(control ? "Dance Control" : "Dance Copy")}</h2>
               <div className="ready-cols">
               <div className="rc-left">
               <div className="song-pick">
                 {songs.map((x) => (
                   <button key={x.id} className={"sp" + (x.id === song.id ? " sel" : "")} onClick={() => setSongId(x.id)}>
-                    <b>{x.title}</b>
-                    <span>{x.blurb}</span>
+                    <b>{tr(x.title)}</b>
+                    <span>{tr(x.blurb)}</span>
                   </button>
                 ))}
               </div>
               <p className="hint">
-                {music.instrumental === "rendering" && "Preparing the music… "}
+                {music.instrumental === "rendering" && tr("Preparing the music… ")}
                 {music.instrumental === "error" && `Music failed to build: ${music.error}. `}
                 {song.audio === "synth" && music.instrumental === "ready" && (music.vocals ? "Music + sung vocals loaded. " : "Music ready (instrumental + synth melody — no sung vocals in this build; the lyrics are shown on screen). ")}
               </p>
               {song.audio === "file" && (
                 <div className="char-box">
                   <div className="char-head">
-                    <b>🎵 Audio file (private test)</b>
-                    <span className="hint">stays on this device</span>
+                    <b>{tr("🎵 Audio file (private test)")}</b>
+                    <span className="hint">{tr("stays on this device")}</span>
                   </div>
-                  <p className="hint">{music.fileInfo ? `Loaded: ${music.fileInfo}.` : "Choose your 60-second clip (mp3/m4a/wav). Only the first 60 s are used. It is never uploaded or stored."}</p>
+                  <p className="hint">{music.fileInfo ? (isAr() ? `تم التحميل: ${music.fileInfo}.` : `Loaded: ${music.fileInfo}.`) : tr("Choose your 60-second clip (mp3/m4a/wav). Only the first 60 s are used. It is never uploaded or stored.")}</p>
                   <input
                     type="file"
                     accept="audio/*,video/mp4"
@@ -772,17 +774,17 @@ function ChallengeScreen(props: {
                     disabled={music.instrumental !== "ready" || !settings.music}
                     onClick={async () => setSoundMsg(await musicRef.current!.preview(song))}
                   >
-                    🔊 Test music
+                    {tr("🔊 Test music")}
                   </button>
-                  {!settings.music && <p className="hint">Music is turned off in ⚙ Settings.</p>}
+                  {!settings.music && <p className="hint">{tr("Music is turned off in ⚙ Settings.")}</p>}
                   {soundMsg && <p className="hint">{soundMsg}</p>}
                 </div>
               )}
               {!control && (
               <div className="char-box">
                 <div className="char-head">
-                  <b>🎨 Coaches</b>
-                  <span className="hint">optional outfits</span>
+                  <b>{tr("🎨 Coaches")}</b>
+                  <span className="hint">{tr("optional outfits")}</span>
                 </div>
                 <div className="coach-row">
                   {COACH_SETS.map((c, i) => (
@@ -804,16 +806,16 @@ function ChallengeScreen(props: {
               )}
               <div className="char-box">
                 <div className="char-head">
-                  <b>👤 Your character</b>
-                  <span className="hint">Photo stays on this device only.</span>
+                  <b>{tr("👤 Your character")}</b>
+                  <span className="hint">{tr("Photo stays on this device only.")}</span>
                 </div>
                 <div className="char-row">
                   {character ? <img className="char-face" src={character.face} alt="your face" /> : <div className="char-face empty">?</div>}
                   <div className="char-btns">
                     <button className="btn ghost small" disabled={charBusy > 0} onClick={takePhoto}>
-                      {charBusy > 0 ? `📸 ${charBusy}…` : character ? "📸 Retake" : "📸 Take photo"}
+                      {charBusy > 0 ? `📸 ${charBusy}…` : character ? tr("📸 Retake") : tr("📸 Take photo")}
                     </button>
-                    {character && <button className="btn ghost small" onClick={() => updateCharacter(null)}>Reset</button>}
+                    {character && <button className="btn ghost small" onClick={() => updateCharacter(null)}>{tr("Reset")}</button>}
                   </div>
                   <div className="hair-row" title="Hair colour">
                     {HAIR_COLORS.map((h) => (
@@ -838,6 +840,18 @@ function ChallengeScreen(props: {
               </div>
               </div>
               <div className="rc-right">
+              {isAr() ? (
+                control ? (
+                  <p><b>طريقة اللعب (تحكّم بالرقصة):</b> ما فيه راقص تقلّدينه. الشخصية على الشاشة <b>هي إنتي</b>: تتحرك بس لما تتحركين. الشكل الأخضر الصغير تحت <b>الحركة الجاية</b> يوريك الحركة اللي تسوينها على النبضة الجاية. سوّيها على الإيقاع عشان تاخذين نقاط، والوقوف بدون حركة ما يجيب نقاط. قفي في مكان تظهرين فيه <b>كاملة</b> للكاميرا، وخلي ذراعيك مرتخيين على جنبك وقت العد التنازلي. الخطوات الجانبية تحرّك الشخصية يمين ويسار.</p>
+                ) : (
+                  <>
+                    <p><b>طريقة اللعب:</b> <b>الراقصتين على الجنبين</b> هم المدربات: قلّديهم. الشخصية <b>اللي في النص هي إنتي</b> (تتبع حركتك من الكاميرا). الأشكال الخضراء الصغيرة على اليمين مجرد معاينة للحركة <i>الجاية</i>.</p>
+                    <p>قفي في مكان تظهرين فيه <b>كاملة</b> للكاميرا. وقت العد التنازلي قفي مرتاحة وذراعيك على جنبك: اللعبة تسجّل وقفتك العادية عشان طولك وحجمك وموضعك ما تأثر على النقاط.</p>
+                    <p>قلّدي الراقص مثل المرآة: ذراعك <b>اليمين</b> هي اللي على <b>يمين الشاشة</b>. كل حركة تتقيّم حسب زوايا المفاصل والمواضع والتوقيت. {song.audio === "synth" ? "تقلّدين بعد الراقصين: عندك حوالي 1.7 ثانية من لحظة ما يسوون الحركة، فما يلزم تكونين معهم بنفس الوقت." : `نافذة التوقيت ±${settings.tolerance.toFixed(1)} ثانية.`}</p>
+                  </>
+                )
+              ) : (
+              <>
               {control ? (
                 <p><b>How to play (Dance Control):</b> there is <b>no dancer to copy</b>. The character on screen <b>is you</b>: it moves only when you move. The small green figure under <b>Coming up</b> shows the move to do on the next beat. Hit it on the beat to score; standing still scores nothing. Stand where the camera sees your <b>whole body</b>, arms relaxed by your sides during the countdown. Side steps move the character left and right.</p>
               ) : (
@@ -847,7 +861,9 @@ function ChallengeScreen(props: {
               <p>Copy the dancer like a mirror: your <b>right</b> arm is the arm on the <b>right side of the screen</b>. Each move is scored on joint angles, relative positions and timing. {song.audio === "synth" ? "You copy AFTER the dancers: you have about 1.7 s from the moment they strike a pose, so no need to be at the same time as them." : `Timing window ±${settings.tolerance.toFixed(1)} s.`}</p>
               </>
               )}
-              <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error" || !!music.needsFile} onClick={start}>START</button>
+              </>
+              )}
+              <button className="btn" disabled={music.instrumental === "rendering" || music.instrumental === "error" || !!music.needsFile} onClick={start}>{tr("START")}</button>
               </div>
               </div>
             </div>
@@ -912,6 +928,7 @@ export function App() {
   const box = useStageBox();
   const engine = useMemo(() => new Engine(), []);
   const [settings, setSettingsState] = useState(loadSettings);
+  setLang(settings.lang); // module-level language, read by tr() while rendering
   const [screen, setScreen] = useState("menu" as Screen);
   const [mode, setMode] = useState("challenge" as "mirror" | "challenge" | "control");
   const [loadMsg, setLoadMsg] = useState("");
@@ -1037,9 +1054,9 @@ export function App() {
   };
 
   return (
-    <div className="app">
+    <div className="app" dir={settings.lang === "ar" ? "rtl" : "ltr"}>
       <div className={"stage" + (settings.tvMode ? " tv" : "")} style={{ width: box.w, height: box.h, "--u": box.w / 100 + "px" }}>
-        {screen === "menu" && <Menu onStart={begin} onSettings={() => setShowSettings(true)} onTV={() => setShowTV(true)} onFullscreen={fullscreen} />}
+        {screen === "menu" && <Menu lang={settings.lang} onLang={() => setSettings({ ...settings, lang: settings.lang === "ar" ? "en" : "ar" })} onStart={begin} onSettings={() => setShowSettings(true)} onTV={() => setShowTV(true)} onFullscreen={fullscreen} />}
         {screen === "loading" && <Loading msg={loadMsg} />}
         {screen === "error" && err && <ErrorScreen err={err} onRetry={() => begin(mode)} onBack={goMenu} />}
         {screen === "calibrate" && (
@@ -1072,8 +1089,8 @@ export function App() {
       {box.portrait && (
         <div className="rotate">
           <div className="rotate-ic">⟳</div>
-          <div>Rotate your phone to landscape</div>
-          <small>Dance Motion is a landscape game. Unlock screen rotation if nothing happens.</small>
+          <div>{tr("Rotate your phone to landscape")}</div>
+          <small>{tr("Dance Motion is a landscape game. Unlock screen rotation if nothing happens.")}</small>
         </div>
       )}
     </div>

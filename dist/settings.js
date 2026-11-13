@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
     reflections: true,
     overlay: true,
     tvMode: false,
+    lang: (typeof navigator !== "undefined" && /^ar/i.test(navigator.language || "") ? "ar" : "en"),
 };
 const KEY = "dance-motion.settings.v1";
 export function loadSettings() {

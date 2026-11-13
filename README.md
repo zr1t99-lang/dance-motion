@@ -118,3 +118,6 @@ A third mode next to Dance Copy and Motion Mirror. **There is no dancer to copy*
 - Audio: **not in this repository** (copyrighted; `private/` is git-ignored). The mode needs the 60 s clip, which the player picks in the ready panel (it stays on the device) or which is read from `private/zumba60.mp3` when running locally. Replace or license before any release.
 - Tests: `node tests/control-tests.mjs`, `python3 tests/e2e/e2e-control.py` (needs the local clip).
 - Not done: the character does not play a separate canned animation when a move is recognised; it mirrors the player live. It is the flat 2D art from the character sheet, not a rigged 3D model.
+
+## Arabic (العربية)
+The UI has an Arabic mode (menu pill / Settings → Language; default Arabic when the phone language is Arabic). Translated: menu, calibration, errors, HUD, judgments, pose names, ready panel and how-to-play, results, settings. Right-to-left layout. Not translated: Debug panel, TV-mode long text, English song lyrics. Checked in headless Chrome screenshots only, not on a real device.

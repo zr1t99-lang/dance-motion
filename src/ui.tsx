@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Engine } from "./engine.js";
 import { MAIN_POINTS, POSE_CONNECTIONS, type Facing, type Pose } from "./types.js";
 import type { Settings } from "./settings.js";
+import { tr } from "./i18n.js";
 
 /* ---------- stage sizing (16:9 letterbox, --u = 1% of stage width) ---------- */
 
@@ -111,9 +112,9 @@ export function PreviewBox(props: {
         <canvas ref={cv} className="preview-overlay" />
       </div>
       <div className="preview-label">
-        <span className={"dot " + (props.lost ? "red" : "green")} /> {props.label ?? "You"}
+        <span className={"dot " + (props.lost ? "red" : "green")} /> {props.label ?? tr("You")}
       </div>
-      {props.lost && <div className="preview-lost">{props.lostText ?? "TRACKING LOST"}</div>}
+      {props.lost && <div className="preview-lost">{props.lostText ?? tr("TRACKING LOST")}</div>}
     </div>
   );
 }
@@ -248,28 +249,32 @@ export function SettingsPanel(props: {
     <div className="overlay" onClick={props.onClose}>
       <div className="panel settings" onClick={(e: any) => e.stopPropagation()}>
         <div className="panel-head">
-          <h2>Settings</h2>
+          <h2>{tr("Settings")}</h2>
           <button className="x" onClick={props.onClose}>✕</button>
         </div>
         <div className="rows">
           <div className="row">
-            <label>Camera</label>
+            <label>{tr("Language")}</label>
+            <Seg value={s.lang} options={[{ v: "en" as const, label: "English" }, { v: "ar" as const, label: "العربية" }]} onChange={(v) => set({ lang: v })} />
+          </div>
+          <div className="row">
+            <label>{tr("Camera")}</label>
             <Seg
               value={s.facing}
-              options={[{ v: "user" as Facing, label: "Front" }, { v: "environment" as Facing, label: "Back" }]}
+              options={[{ v: "user" as Facing, label: tr("Front") }, { v: "environment" as Facing, label: tr("Back") }]}
               onChange={(f) => (props.cameraActive ? props.onSwitchCamera(f) : set({ facing: f, mirror: f === "user" }))}
             />
           </div>
           <div className="row">
-            <label>Mirror view</label>
-            <Seg value={s.mirror} options={[{ v: true, label: "On" }, { v: false, label: "Off" }]} onChange={(v) => set({ mirror: v })} />
+            <label>{tr("Mirror view")}</label>
+            <Seg value={s.mirror} options={[{ v: true, label: tr("On") }, { v: false, label: tr("Off") }]} onChange={(v) => set({ mirror: v })} />
           </div>
           <div className="row">
-            <label>Skeleton overlay</label>
-            <Seg value={s.overlay} options={[{ v: true, label: "On" }, { v: false, label: "Off" }]} onChange={(v) => set({ overlay: v })} />
+            <label>{tr("Skeleton overlay")}</label>
+            <Seg value={s.overlay} options={[{ v: true, label: tr("On") }, { v: false, label: tr("Off") }]} onChange={(v) => set({ overlay: v })} />
           </div>
           <div className="row">
-            <label>Timing tolerance</label>
+            <label>{tr("Timing tolerance")}</label>
             <div className="stepper">
               <button onClick={() => set({ tolerance: Math.max(0.3, Math.round((s.tolerance - 0.1) * 10) / 10) })}>−</button>
               <span>±{s.tolerance.toFixed(1)} s</span>
@@ -277,7 +282,7 @@ export function SettingsPanel(props: {
             </div>
           </div>
           <div className="row">
-            <label>Audio offset</label>
+            <label>{tr("Audio offset")}</label>
             <div className="stepper">
               <button onClick={() => set({ audioOffsetMs: Math.max(-300, s.audioOffsetMs - 20) })}>−</button>
               <span>{s.audioOffsetMs > 0 ? "+" : ""}{s.audioOffsetMs} ms</span>
@@ -285,36 +290,36 @@ export function SettingsPanel(props: {
             </div>
           </div>
           <div className="row">
-            <label>Music</label>
-            <Seg value={s.music} options={[{ v: true, label: "On" }, { v: false, label: "Off" }]} onChange={(v) => set({ music: v })} />
+            <label>{tr("Music")}</label>
+            <Seg value={s.music} options={[{ v: true, label: tr("On") }, { v: false, label: tr("Off") }]} onChange={(v) => set({ music: v })} />
           </div>
           <div className="row">
-            <label>Pose inference cap</label>
+            <label>{tr("Pose inference cap")}</label>
             <Seg
               value={s.maxFps}
-              options={[{ v: 15, label: "15" }, { v: 24, label: "24" }, { v: 30, label: "30" }, { v: 60, label: "Max" }]}
+              options={[{ v: 15, label: tr("15") }, { v: 24, label: tr("24") }, { v: 30, label: tr("30") }, { v: 60, label: tr("Max") }]}
               onChange={(v) => set({ maxFps: v })}
             />
           </div>
           <div className="row">
-            <label>Pose model</label>
+            <label>{tr("Pose model")}</label>
             <Seg
               value={s.model}
-              options={[{ v: "lite" as const, label: "Lite" }, { v: "full" as const, label: "Full" }, { v: "heavy" as const, label: "Heavy (best)" }]}
+              options={[{ v: "lite" as const, label: tr("Lite") }, { v: "full" as const, label: tr("Full") }, { v: "heavy" as const, label: tr("Heavy (best)") }]}
               onChange={(v) => set({ model: v })}
             />
           </div>
           <div className="row">
-            <label>Movement response</label>
+            <label>{tr("Movement response")}</label>
             <Seg
               value={s.responsiveness}
-              options={[{ v: "smooth" as const, label: "Smooth" }, { v: "balanced" as const, label: "Balanced" }, { v: "fast" as const, label: "Fast" }]}
+              options={[{ v: "smooth" as const, label: tr("Smooth") }, { v: "balanced" as const, label: tr("Balanced") }, { v: "fast" as const, label: tr("Fast") }]}
               onChange={(v) => set({ responsiveness: v })}
             />
           </div>
           <div className="row">
-            <label>Floor reflections</label>
-            <Seg value={s.reflections} options={[{ v: true, label: "On" }, { v: false, label: "Off" }]} onChange={(v) => set({ reflections: v })} />
+            <label>{tr("Floor reflections")}</label>
+            <Seg value={s.reflections} options={[{ v: true, label: tr("On") }, { v: false, label: tr("Off") }]} onChange={(v) => set({ reflections: v })} />
           </div>
         </div>
         <p className="hint">Model changes apply the next time you start a mode (Heavy = most accurate, needs a fast phone; if it lags, use Full or Lite). Lowering the inference cap or turning reflections off helps older phones.</p>
@@ -332,7 +337,7 @@ export function TVPanel(props: { settings: Settings; onChange: (s: Settings) => 
     <div className="overlay" onClick={props.onClose}>
       <div className="panel tv" onClick={(e: any) => e.stopPropagation()}>
         <div className="panel-head">
-          <h2>TV Mode</h2>
+          <h2>{tr("TV Mode")}</h2>
           <button className="x" onClick={props.onClose}>✕</button>
         </div>
         <p>
@@ -341,13 +346,13 @@ export function TVPanel(props: { settings: Settings; onChange: (s: Settings) => 
         </p>
         <div className="cols">
           <div>
-            <h3>Mirror the screen</h3>
+            <h3>{tr("Mirror the screen")}</h3>
             <ul>
               <li><b>iPhone / iPad:</b> Control Center → Screen Mirroring → pick an Apple TV / AirPlay-capable TV.</li>
               <li><b>Android:</b> Quick Settings → Cast / Smart View / Screen cast → pick a Chromecast, Google TV or Miracast TV.</li>
               <li><b>Cable:</b> USB-C to HDMI adapter (DisplayPort-capable phones) or Lightning/USB-C to HDMI.</li>
             </ul>
-            <h3>Phone placement</h3>
+            <h3>{tr("Phone placement")}</h3>
             <ul>
               <li>Prop the phone in <b>landscape</b> below the TV, camera facing you, at about 2–3 m.</li>
               <li>The whole body, feet included, must be in view (use Calibration).</li>
@@ -355,11 +360,11 @@ export function TVPanel(props: { settings: Settings; onChange: (s: Settings) => 
             </ul>
           </div>
           <div>
-            <h3>TV layout</h3>
+            <h3>{tr("TV layout")}</h3>
             <p className="hint">Shrinks the camera preview, hides debug text and keeps the 16:9 layout.</p>
-            <Seg value={props.settings.tvMode} options={[{ v: false, label: "Off" }, { v: true, label: "On" }]} onChange={(v) => props.onChange({ ...props.settings, tvMode: v })} />
-            <button className="btn small" onClick={props.onFullscreen}>Go fullscreen</button>
-            <h3>Status</h3>
+            <Seg value={props.settings.tvMode} options={[{ v: false, label: tr("Off") }, { v: true, label: tr("On") }]} onChange={(v) => props.onChange({ ...props.settings, tvMode: v })} />
+            <button className="btn small" onClick={props.onFullscreen}>{tr("Go fullscreen")}</button>
+            <h3>{tr("Status")}</h3>
             <ul className="status">
               <li>Browser Presentation API: <b>{hasPresentation ? "present (not used by this prototype)" : "not available"}</b></li>
               <li>Automatic TV connection: <b>not supported</b> — use the mirroring steps on the left.</li>

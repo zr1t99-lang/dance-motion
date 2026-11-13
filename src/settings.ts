@@ -19,6 +19,8 @@ export interface Settings {
   /** Draw the detected skeleton over the camera preview. */
   overlay: boolean;
   tvMode: boolean;
+  /** UI language. Defaults to the browser language (Arabic when the device is set to Arabic). */
+  lang: "en" | "ar";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reflections: true,
   overlay: true,
   tvMode: false,
+  lang: (typeof navigator !== "undefined" && /^ar/i.test(navigator.language || "") ? "ar" : "en") as "en" | "ar",
 };
 
 const KEY = "dance-motion.settings.v1";
