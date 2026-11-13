@@ -7,7 +7,7 @@ export interface FigureState {
   ox: number;
   oy: number;
   scale: number;
-  look: Required<Pick<Look, "skin" | "jacket" | "shirt" | "pants" | "shoes" | "hair" | "pony" | "baggy">> & { headband: number | null; face: HTMLCanvasElement | null };
+  look: Required<Pick<Look, "skin" | "jacket" | "shirt" | "pants" | "shoes" | "hair" | "pony" | "baggy">> & { headband: number | null; face: HTMLCanvasElement | null; longHair?: boolean };
 }
 
 const hex = (n: number) => "#" + n.toString(16).padStart(6, "0");
@@ -170,6 +170,32 @@ export class Cutout {
       g.restore();
     }
 
+    // ---- long wavy hair hanging behind the body
+    if (L.longHair) {
+      const w = 0.15 * hm, top = head[1] - 0.12 * hm, bot = head[1] + 0.62 * m;
+      g.fillStyle = hair;
+      g.strokeStyle = INK;
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(head[0] - w, head[1]);
+      g.bezierCurveTo(head[0] - w * 1.5, top, head[0] + w * 1.5, top, head[0] + w, head[1]);
+      g.bezierCurveTo(head[0] + w * 1.45, head[1] + 0.2 * m, head[0] + w * 1.1, bot - 0.15 * m, head[0] + w * 1.25, bot - 0.05 * m);
+      g.bezierCurveTo(head[0] + w * 0.8, bot + 0.04 * m, head[0] + w * 0.5, bot - 0.06 * m, head[0] + w * 0.2, bot + 0.03 * m);
+      g.bezierCurveTo(head[0] - w * 0.3, bot - 0.06 * m, head[0] - w * 0.6, bot + 0.04 * m, head[0] - w * 1.0, bot - 0.04 * m);
+      g.bezierCurveTo(head[0] - w * 1.2, bot - 0.15 * m, head[0] - w * 1.5, head[1] + 0.2 * m, head[0] - w, head[1]);
+      g.closePath();
+      g.fill();
+      g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.14)";
+      g.lineWidth = Math.max(2, 0.012 * m);
+      for (const k of [-0.6, 0, 0.6]) {
+        g.beginPath();
+        g.moveTo(head[0] + w * k, head[1] + 0.05 * m);
+        g.bezierCurveTo(head[0] + w * (k + 0.5), head[1] + 0.22 * m, head[0] + w * (k - 0.5), head[1] + 0.4 * m, head[0] + w * k, bot - 0.08 * m);
+        g.stroke();
+      }
+    }
+
     // ---- legs: baggy pants + chunky sneakers
     const leg = (hp: [number, number], kn: [number, number], an: [number, number], toeDir: number) => {
       this.limb(hp, kn, legR, pants, true, legR * 1.02);
@@ -303,6 +329,21 @@ export class Cutout {
     arm(ls, le, lw);
     arm(rs, re, rw);
 
+    if (L.longHair) {
+      g.fillStyle = hair;
+      g.strokeStyle = INK;
+      g.lineWidth = 3;
+      for (const sd of [-1, 1]) {
+        const x0 = head[0] + sd * 0.12 * hm, y0 = head[1] - 0.02 * hm;
+        g.beginPath();
+        g.moveTo(x0, y0);
+        g.bezierCurveTo(x0 + sd * 0.06 * hm, y0 + 0.2 * m, x0 + sd * 0.1 * hm, y0 + 0.4 * m, x0 + sd * 0.02 * hm, y0 + 0.5 * m);
+        g.bezierCurveTo(x0 - sd * 0.07 * hm, y0 + 0.42 * m, x0 - sd * 0.1 * hm, y0 + 0.2 * m, x0 - sd * 0.06 * hm, y0 + 0.05 * m);
+        g.closePath();
+        g.fill();
+        g.stroke();
+      }
+    }
     // ---- neck + head
     const nk = [sh[0] + ux * 0.04 * hm, sh[1] + uy * 0.04 * hm] as [number, number];
     this.limb(nk, head, 0.04 * m, skin, true);
@@ -342,6 +383,7 @@ export class Cutout {
     g.closePath();
     g.fill();
     g.stroke();
+    if (L.longHair) this.star(0.085 * hm, -0.07 * hm, 0.032 * hm, hex(L.jacket));
     if (L.headband !== null) {
       g.strokeStyle = INK;
       g.lineWidth = 0.05 * hm + 3;

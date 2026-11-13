@@ -28,6 +28,8 @@ export class Stage3D {
     onFrame = null;
     /** Called after each render (used by the 2D cut-out overlay). */
     postFrame = null;
+    /** Set by the game while the player's pose is not being tracked (the 2D player is then hidden). */
+    playerHidden = false;
     /** Hide the 3D avatars (the 2D cut-out characters are drawn instead). */
     setCutoutMode(on) {
         for (const a of [this.avatar, ...this.dancers])

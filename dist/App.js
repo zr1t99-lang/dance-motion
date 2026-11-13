@@ -6,7 +6,7 @@ import { TrackerError } from "./tracker.js";
 import { Stage3D, StageError } from "./stage3d.js";
 import { Cutout } from "./cutout.js";
 import { INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE, PLAYER_STYLE } from "./avatar3d.js";
-import { COACH_SETS, OUTFITS, loadCoachSet, outfitLook, saveCoachSet } from "./coaches.js";
+import { COACH_SETS, cartoonFace, OUTFITS, loadCoachSet, outfitLook, saveCoachSet } from "./coaches.js";
 import { HAIR_COLORS, captureCharacter, faceCanvas, loadCharacter, saveCharacter } from "./character.js";
 import { MusicPlayer } from "./songPlayer.js";
 import { buildSunshineShake } from "./songs/sunshineShake.js";
@@ -58,7 +58,7 @@ function StageCanvas(props) {
                 const list = [...stage.dancers, stage.avatar];
                 for (const a of list) {
                     const f = a.figureState();
-                    if (!f)
+                    if (!f || (a === stage.avatar && stage.playerHidden))
                         continue;
                     const base = stage.project(f.ox, 0, cw, ch);
                     const map = (x, y) => {
@@ -243,7 +243,7 @@ function ChallengeScreen(props) {
         applyCoaches(stage);
         const c = charRef.current;
         if (!c) {
-            stage.avatar.setLook({ jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true, longHair: true });
+            stage.avatar.setLook({ face: cartoonFace(PLAYER_STYLE.skin, true), jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true, longHair: true });
             return;
         }
         stage.avatar.setLook({ skin: c.skin, jacket: c.jacket, hair: c.hair, baggy: true, longHair: true });
@@ -264,7 +264,7 @@ function ChallengeScreen(props) {
         if (c)
             applyLook(stage);
         else {
-            stage.avatar.setLook({ face: null, skin: PLAYER_STYLE.skin, hair: PLAYER_STYLE.hair, jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true, longHair: true });
+            stage.avatar.setLook({ face: cartoonFace(PLAYER_STYLE.skin, true), skin: PLAYER_STYLE.skin, hair: PLAYER_STYLE.hair, jacket: 0x7a3cff, shirt: 0x15111f, pants: 0x1a1428, baggy: true, longHair: true });
         }
     };
     const takePhoto = () => {
@@ -391,6 +391,7 @@ function ChallengeScreen(props) {
         const beatPhase = (((t % bs) + bs) % bs) / bs;
         stage.pulse(ph === "playing" || ph === "countdown" ? 1 - beatPhase : 0);
         const isLost = engine.trackingLost(now);
+        stage.playerHidden = isLost;
         if (isLost !== lostRef.current) {
             lostRef.current = isLost;
             setLost(isLost);
@@ -449,7 +450,7 @@ function ChallengeScreen(props) {
     const section = song.sections.find((x) => beatNow >= x.startBeat && beatNow < x.startBeat + x.beats)?.name ?? "";
     const lyric = playing || phase === "countdown" ? currentLyric(song, beatNow) : null;
     const judgeColor = { PERFECT: "perfect", GREAT: "great", GOOD: "good", MISS: "miss" };
-    return (_jsxs(_Fragment, { children: [_jsx(StageCanvas, { style: PLAYER_STYLE, dancers: [INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE], reflections: settings.reflections, onStage: (s) => {
+    return (_jsxs(_Fragment, { children: [_jsx(StageCanvas, { style: PLAYER_STYLE, dancers: [INSTRUCTOR_STYLE, INSTRUCTOR2_STYLE], cutout: true, reflections: settings.reflections, onStage: (s) => {
                     stageRef.current = s;
                     if (s) {
                         s.onFrame = (dt, now) => frameRef.current(dt, now);
